@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+data/raw/
+*.zip
+*.gz
+.DS_Store
+.ipynb_checkpoints/
+.env
+.claude/
+reports/coverage/
+.coverage
+htmlcov/

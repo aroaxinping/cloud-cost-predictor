@@ -1,0 +1,49 @@
+seed: 42
+
+model:
+  n_estimators: 1000
+  max_depth: 4
+  learning_rate: 0.1
+  min_child_weight: 50
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  early_stopping_rounds: 20
+  under_penalty: 3.0
+  quantiles: [0.10, 0.50, 0.95]
+
+thresholds:
+  terminate_cpu: 5
+  downsize_cpu: 20
+  review_cpu: 50
+  terminate_mem: 10
+  downsize_mem: 30
+  review_mem: 60
+
+classification:
+  zombie_cpu_max: 5
+  zombie_mem_max: 20
+  idle_cpu_p95_max: 10
+  idle_mem_max: 50
+  oversized_cpu_mean_max: 20
+  oversized_cpu_p95_max: 50
+  oversized_mem_max: 50
+  hot_cpu_min: 80
+  memory_bound_min: 80
+
+risk_margins:
+  terminate:
+    safe: 3
+    moderate: 1
+  downsize:
+    safe: 8
+    moderate: 3
+
+anomaly:
+  recent_days: 7
+  z_threshold: 2.5
+  min_observations: 5
+
+pricing:
+  price_per_cpu_pct_hour: 0.001
+  hours_per_month: 730
