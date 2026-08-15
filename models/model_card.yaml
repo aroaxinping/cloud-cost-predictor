@@ -1,0 +1,61 @@
+model_name: Cloud VM CPU Utilization Predictor
+version: "1.0"
+framework: XGBoost 2.x
+task: Quantile Regression (asymmetric loss)
+
+training:
+  dataset: SAP Cloud Infrastructure Dataset (August 2024, CC BY 4.0)
+  source: https://zenodo.org/records/13772668
+  samples: 123,363 virtual machines
+  features:
+    - cpu_std (standard deviation / volatility)
+    - cpu_min (minimum utilization / floor)
+    - cpu_median (p50 utilization)
+    - trend (temporal slope, zero at inference)
+    - cv (coefficient of variation)
+  feature_selection: VIF-based multicollinearity removal (11 -> 5 features)
+  quantiles: [0.10, 0.50, 0.95]
+  split: 80/20 VM-level (9,411 unseen VMs in test set)
+
+hyperparameters:
+  n_estimators: 1000
+  max_depth: 4
+  learning_rate: 0.1
+  min_child_weight: 50
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  early_stopping_rounds: 20
+  under_penalty: 3.0
+
+performance:
+  median_model_mae: 1.71
+  overall_mae: 2.87
+  coverage_95: 96.8%
+  coverage_85: 85.6%
+  naive_baseline_mae: 7.41
+  improvement_over_baseline: "61%"
+  train_test_gap: "0.04% (no overfitting)"
+
+classification_thresholds:
+  terminate: "p95 < 5%"
+  downsize: "p95 < 20%"
+  review: "p50 < 50%"
+  keep: "p50 >= 50%"
+
+output:
+  total_waste_identified: "$5.9M/month"
+  fleet_cost: "$11.0M/month"
+  waste_percentage: "54%"
+
+limitations:
+  - Static snapshot analysis; does not capture seasonal patterns
+  - Memory used as heuristic guard (>80% = right-sized), not as model feature
+  - Pricing based on EC2 on-demand rates (no reserved/spot)
+  - SAP enterprise workloads may not generalize to other clouds
+  - Trend feature defaults to zero at inference (no raw time series available)
+
+ethical_considerations:
+  - Recommendations should be validated by infrastructure teams
+  - Aggressive termination of "zombie" VMs risks service disruption
+  - Risk scores provide safety margins for conservative adoption
