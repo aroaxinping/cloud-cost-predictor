@@ -1,0 +1,10 @@
+size,ec2_type,vm_count,monthly_cost,zombie_savings,downsize_savings
+Medium/Small,t3.medium,74672,2267639,247165,954664
+Medium/Medium,m5.large,37787,2648113,288589,1263477
+Extra Large/Large,r5.4xlarge,3476,2557780,278148,1076534
+Small/Small,t3.small,2696,40936,4449,17234
+Extra Large/Extra Large,r5.8xlarge,2009,2956605,320826,1244305
+Large/Large,r5.xlarge,1380,253865,27594,106789
+Large/Medium,r5.large,760,69905,7542,13994
+Extra Large/Medium,r5.2xlarge,455,167404,18028,70457
+Medium/Large,m5.xlarge,125,17520,1822,7358
