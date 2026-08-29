@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "source": "AWS EC2 On-Demand Pricing",
+    "region": "us-east-1",
+    "os": "Linux",
+    "verified": "2026-09-07",
+    "url": "https://aws.amazon.com/ec2/pricing/on-demand/"
+  },
+  "instances": {
+    "t3.micro":   {"vcpus": 2,  "ram_gb": 1,   "usd_per_hour": 0.0104},
+    "t3.small":   {"vcpus": 2,  "ram_gb": 2,   "usd_per_hour": 0.0208},
+    "t3.medium":  {"vcpus": 2,  "ram_gb": 4,   "usd_per_hour": 0.0416},
+    "m5.large":   {"vcpus": 2,  "ram_gb": 8,   "usd_per_hour": 0.0960},
+    "m5.xlarge":  {"vcpus": 4,  "ram_gb": 16,  "usd_per_hour": 0.1920},
+    "r5.large":   {"vcpus": 2,  "ram_gb": 16,  "usd_per_hour": 0.1260},
+    "r5.xlarge":  {"vcpus": 4,  "ram_gb": 32,  "usd_per_hour": 0.2520},
+    "r5.2xlarge": {"vcpus": 8,  "ram_gb": 64,  "usd_per_hour": 0.5040},
+    "r5.4xlarge": {"vcpus": 16, "ram_gb": 128, "usd_per_hour": 1.0080},
+    "r5.8xlarge": {"vcpus": 32, "ram_gb": 256, "usd_per_hour": 2.0160}
+  }
+}
