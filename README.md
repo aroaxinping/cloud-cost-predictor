@@ -19,7 +19,7 @@ Predicting cloud infrastructure waste from real VM fleet data (SAP Cloud Infrast
 ```
 src/           — analysis and model code
 notebooks/     — EDA and presentation notebooks
-data/clean/    — processed datasets (tracked)
+data/processed/    — processed datasets (tracked)
 data/raw/      — source data (not tracked)
 scripts/       — CLI tools
 ```
