@@ -1,0 +1,28 @@
+model:
+  n_estimators: 1000
+  max_depth: 4
+  learning_rate: 0.1
+  min_child_weight: 50
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  early_stopping_rounds: 20
+  under_penalty: 3.0
+  quantiles: [0.10, 0.50, 0.95]
+
+thresholds:
+  terminate_cpu: 5
+  downsize_cpu: 20
+  review_cpu: 50
+
+risk_margins:
+  terminate:
+    safe: 3
+    moderate: 1
+  downsize:
+    safe: 8
+    moderate: 3
+
+pricing:
+  price_per_cpu_pct_hour: 0.001
+  hours_per_month: 730
