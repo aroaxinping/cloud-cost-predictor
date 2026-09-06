@@ -4,7 +4,7 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "clean"
 
-# Realistic EC2 pricing (us-east-1, on-demand, Linux, USD/hour) — Sep 2024
+# Realistic EC2 pricing (us-east-1, on-demand, Linux, USD/hour) - Sep 2024
 # Mapped from SAP size categories to plausible EC2 equivalents
 SIZE_MAP = {
     ("Small", "Small"):       ("t3.small",    2, 2,   0.0208),
