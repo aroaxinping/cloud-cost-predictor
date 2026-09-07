@@ -38,7 +38,7 @@ def estimate_fleet_cost():
     with open(DATA / "vm_size_distribution.csv") as f:
         sizes = list(csv.DictReader(f))
 
-    # The count column represents VM-snapshots (30 days × ~daily), 
+    # The count column represents VM-snapshots (30 days x ~daily),
     # so we need to normalize. From ingest we know there are ~123K unique VMs.
     # Let's compute proportions and apply to 123,363 VMs.
     total_snapshots = sum(int(s["total_count"]) for s in sizes)
@@ -90,7 +90,7 @@ def estimate_fleet_cost():
     print()
     
     for r in sorted(results, key=lambda x: -x["monthly_cost"]):
-        print(f"  {r['ec2_type']:>14} × {r['vm_count']:>6,}: "
+        print(f"  {r['ec2_type']:>14} x {r['vm_count']:>6,}: "
               f"${r['monthly_cost']:>10,}/mo | "
               f"save ${r['zombie_savings'] + r['downsize_savings']:>8,}")
 

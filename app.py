@@ -760,10 +760,16 @@ def page_try_it():
             # Build features
             with st.spinner("Running predictions..."):
                 models = load_models()
+                has_std = "cpu_std" in df.columns
+                if not has_std and "cpu_max" in df.columns:
+                    df["cpu_std"] = (df["cpu_max"] - df["cpu_min"]) / 4
+                elif not has_std:
+                    df["cpu_std"] = 0.0
+
                 features = []
                 for _, row in df.iterrows():
                     cpu_mean = float(row["cpu_mean"])
-                    cpu_std = float(row.get("cpu_std", 0))
+                    cpu_std = float(row["cpu_std"])
                     cpu_min = float(row["cpu_min"])
                     cpu_median = float(row["cpu_median"])
                     cv = cpu_std / cpu_mean if cpu_mean > 0 else 0

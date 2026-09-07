@@ -37,6 +37,7 @@ def summarize_metric(zf, filename):
         n = len(vals)
         result[inst] = {
             "mean": statistics.mean(vals),
+            "std": statistics.stdev(vals) if n > 1 else 0.0,
             "median": statistics.median(vals),
             "p5": vals[max(0, int(n * 0.05))],
             "p95": vals[min(n - 1, int(n * 0.95))],
@@ -78,17 +79,17 @@ def build(out_dir=None):
         w = csv.writer(f)
         w.writerow([
             "instance",
-            "cpu_mean", "cpu_median", "cpu_p5", "cpu_p95", "cpu_min", "cpu_max", "cpu_n",
-            "mem_mean", "mem_median", "mem_p5", "mem_p95", "mem_min", "mem_max", "mem_n",
+            "cpu_mean", "cpu_std", "cpu_median", "cpu_p5", "cpu_p95", "cpu_min", "cpu_max", "cpu_n",
+            "mem_mean", "mem_std", "mem_median", "mem_p5", "mem_p95", "mem_min", "mem_max", "mem_n",
         ])
         for inst in all_instances:
             c = cpu.get(inst, {})
             m = mem.get(inst, {})
             w.writerow([
                 inst,
-                *[round(c.get(k, 0), 4) for k in ("mean", "median", "p5", "p95", "min", "max")],
+                *[round(c.get(k, 0), 4) for k in ("mean", "std", "median", "p5", "p95", "min", "max")],
                 c.get("n", 0),
-                *[round(m.get(k, 0), 4) for k in ("mean", "median", "p5", "p95", "min", "max")],
+                *[round(m.get(k, 0), 4) for k in ("mean", "std", "median", "p5", "p95", "min", "max")],
                 m.get("n", 0),
             ])
 

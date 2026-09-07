@@ -30,12 +30,22 @@ def build_features_from_summary(csv_path):
     instances = []
     features = []
 
+    warned_std = False
     with open(csv_path) as f:
         for row in csv.DictReader(f):
             cpu_mean = float(row["cpu_mean"])
-            cpu_std = float(row.get("cpu_std", 0))
             cpu_min = float(row["cpu_min"])
             cpu_median = float(row["cpu_median"])
+
+            if "cpu_std" in row:
+                cpu_std = float(row["cpu_std"])
+            else:
+                # Approximate std from range when not available
+                cpu_std = (float(row.get("cpu_max", cpu_mean)) - cpu_min) / 4
+                if not warned_std:
+                    print("Warning: cpu_std not in CSV, approximating from range", file=sys.stderr)
+                    warned_std = True
+
             trend = 0.0
             cv = cpu_std / cpu_mean if cpu_mean > 0 else 0
 

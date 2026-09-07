@@ -51,24 +51,43 @@ Underpredicting CPU usage is worse than overpredicting: terminating a VM that's 
 | Review | 2,753 | $4,687/month |
 | Keep | 177 | - |
 
+## Dashboard
+
+Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, feature importance), recommendations explorer with filters, and a "Try It" page for uploading your own VM data.
+
+```bash
+streamlit run app.py
+```
+
+## Explainability
+
+SHAP TreeExplainer on the median model provides per-VM feature attribution. The notebook includes beeswarm and waterfall plots showing why specific VMs get their recommendations.
+
 ## Project Structure
 
 ```
+app.py                <- Streamlit dashboard
 data/
-  raw/            <- source data (not tracked)
-  clean/          <- processed datasets
+  raw/                <- source data (not tracked)
+  clean/              <- processed datasets
 notebooks/
   01_eda.ipynb
   02_cost_analysis.ipynb
   03_predictive_model.ipynb
 src/
-  ingest.py       <- stream SAP zip to per-VM summaries
-  eda.py          <- classify VMs (zombie/idle/oversized/right-sized/hot)
-  pricing.py      <- map to EC2 pricing, estimate waste
-  predict.py      <- load models, generate recommendations
-models/           <- trained XGBoost models (.json)
+  ingest.py           <- stream SAP zip to per-VM summaries
+  eda.py              <- classify VMs (zombie/idle/oversized/right-sized/hot)
+  pricing.py          <- map to EC2 pricing, estimate waste
+  predict.py          <- load models, generate recommendations
+scripts/
+  export_figures.py   <- generate publication-ready figures
+models/               <- trained XGBoost models (.json)
+tests/                <- smoke tests for prediction pipeline
 reports/
-  figures/        <- generated plots
+  figures/            <- generated plots
+config.yaml           <- model hyperparameters and thresholds
+Dockerfile            <- containerized deployment
+Makefile              <- setup/train/predict/app targets
 ```
 
 ## Setup
@@ -96,6 +115,13 @@ python src/predict.py
 
 # Or pass a custom CSV
 python src/predict.py path/to/vm_utilization_summary.csv output.csv
+
+# Launch the dashboard
+streamlit run app.py
+
+# Or use Docker
+docker build -t cloud-cost-predictor .
+docker run -p 8501:8501 cloud-cost-predictor
 ```
 
 ## License

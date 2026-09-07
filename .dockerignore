@@ -1,0 +1,15 @@
+.venv/
+venv/
+data/raw/
+.git/
+.claude/
+__pycache__/
+.ipynb_checkpoints/
+*.zip
+*.gz
+.env
+.dockerignore
+.gitignore
+notebooks/
+reports/
+scripts/
