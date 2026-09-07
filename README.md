@@ -124,6 +124,28 @@ docker build -t cloud-cost-predictor .
 docker run -p 8501:8501 cloud-cost-predictor
 ```
 
+## A Note on the Data
+
+The SAP dataset is from August 2024. This does not affect the analysis:
+
+- **CPU predictions don't expire.** The model predicts utilization (% CPU), not prices. A VM running at 2% in 2024 would still be idle today. Usage patterns are hardware-agnostic and time-independent.
+- **Cost estimates are illustrative.** The $5.9M figure uses a simplified EC2 pricing proxy to dimension the problem, not to produce a real invoice. Actual EC2 prices for established instance families (r5, m5, c5) have remained stable.
+- **The value is methodological.** The dataset comes from a peer-reviewed academic source (SAP, CC BY 4.0). The contribution is the pipeline -- asymmetric loss, quantile thresholds, per-VM risk scoring -- not the specific dollar amounts.
+
+## Limitations
+
+- **No temporal trend in inference.** The `trend` feature (slope of daily CPU) is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
+- **CPU-only recommendations.** Memory utilization data exists in the pipeline but is not used in the decision logic. A VM with low CPU but high memory would be flagged for termination incorrectly.
+- **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining to capture seasonal patterns and fleet changes.
+- **Proxy pricing, not real billing.** The cost model maps vCPU/RAM categories to EC2 equivalents. Real cloud bills include storage, networking, reserved instances, and volume discounts that this analysis does not capture.
+
+## Next Steps
+
+- **Memory-aware recommendations** -- incorporate `mem_mean` into the decision thresholds so high-memory VMs are not incorrectly flagged
+- **SHAP-based recommendation explanations** -- surface the top-3 features driving each VM's recommendation in the dashboard and CSV output
+- **Anomaly detection layer** -- flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
+- **AWS Pricing API integration** -- replace the static proxy with real-time EC2 pricing for more accurate savings estimates
+
 ## License
 
 Analysis code: MIT. Dataset: CC BY 4.0 (SAP).
