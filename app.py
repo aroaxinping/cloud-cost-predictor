@@ -771,6 +771,65 @@ assume on-demand pricing, not reserved instances or savings plans.
         else:
             st.info("Pricing file not found. Run scripts/fetch_ec2_pricing.py to generate it.")
 
+    # Sensitivity analysis
+    st.markdown('<p class="section-header">Threshold Sensitivity</p>',
+                unsafe_allow_html=True)
+    st.markdown("""
+    <p class="story-text">
+        How do the savings change if we adjust the terminate threshold?
+        Moving it from 5% to 3% is more conservative (fewer kills, less risk).
+        Moving it to 10% is more aggressive (more savings, more risk).
+    </p>
+    """, unsafe_allow_html=True)
+
+    thresholds_range = list(range(1, 16))
+    savings_by_threshold = []
+    terminate_counts = []
+    for t in thresholds_range:
+        n_term = (rec["pred_high"] < t).sum()
+        terminate_counts.append(n_term)
+        avg_hourly = load_fleet_avg_hourly()
+        term_savings = n_term * avg_hourly * 730
+        savings_by_threshold.append(term_savings / 1e6)
+
+    fig_sens = go.Figure()
+    fig_sens.add_trace(go.Scatter(
+        x=thresholds_range,
+        y=savings_by_threshold,
+        mode="lines+markers",
+        line=dict(color=GREEN, width=3),
+        marker=dict(size=8),
+        name="Monthly savings ($M)",
+        hovertemplate="Threshold: %{x}%<br>Savings: $%{y:.1f}M<br>VMs terminated: %{customdata:,}<extra></extra>",
+        customdata=terminate_counts,
+    ))
+    fig_sens.add_vline(x=5, line_dash="dash", line_color=RED,
+                       annotation_text="Current (5%)", annotation_position="top")
+    fig_sens.update_layout(
+        **PLOTLY_LAYOUT,
+        xaxis_title="Terminate threshold (CPU p95 %)",
+        yaxis_title="Monthly savings ($M)",
+        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", dtick=1),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+        height=350,
+        showlegend=False,
+    )
+    st.plotly_chart(fig_sens, use_container_width=True)
+
+    sc1, sc2, sc3 = st.columns(3)
+    current_idx = thresholds_range.index(5)
+    with sc1:
+        conservative_savings = savings_by_threshold[thresholds_range.index(3)]
+        st.metric("Conservative (3%)", f"${conservative_savings:.1f}M/mo",
+                  f"{terminate_counts[thresholds_range.index(3)]:,} VMs")
+    with sc2:
+        st.metric("Current (5%)", f"${savings_by_threshold[current_idx]:.1f}M/mo",
+                  f"{terminate_counts[current_idx]:,} VMs")
+    with sc3:
+        aggressive_savings = savings_by_threshold[thresholds_range.index(10)]
+        st.metric("Aggressive (10%)", f"${aggressive_savings:.1f}M/mo",
+                  f"{terminate_counts[thresholds_range.index(10)]:,} VMs")
+
     # Searchable table
     st.markdown('<p class="section-header">VM Explorer</p>',
                 unsafe_allow_html=True)
