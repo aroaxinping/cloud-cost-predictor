@@ -1,0 +1,55 @@
+model_name: Cloud VM CPU Utilization Predictor
+version: "1.0"
+framework: XGBoost 3.4.1
+task: Quantile Regression (asymmetric loss)
+
+training:
+  dataset: SAP Cloud Infrastructure Dataset (2023)
+  samples: 123,363 virtual machines
+  features:
+    - cpu_std (standard deviation)
+    - cpu_min (minimum utilization)
+    - cpu_median (p50 utilization)
+    - trend (temporal slope)
+    - cv (coefficient of variation)
+  feature_selection: VIF-based multicollinearity removal
+  quantiles: [0.10, 0.50, 0.95]
+
+hyperparameters:
+  n_estimators: 1000
+  max_depth: 4
+  learning_rate: 0.1
+  min_child_weight: 50
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  early_stopping_rounds: 20
+  under_penalty: 3.0
+
+performance:
+  mae: 2.87
+  coverage_95: 96.8%
+  naive_baseline_mae: 7.41
+  improvement_over_baseline: "61%"
+
+classification_thresholds:
+  terminate: "p95 < 5%"
+  downsize: "p95 < 20%"
+  review: "p50 < 50%"
+  keep: "p50 >= 50%"
+
+output:
+  total_waste_identified: "$5.9M/month"
+  fleet_cost: "$11.0M/month"
+  waste_percentage: "54%"
+
+limitations:
+  - Static snapshot analysis; does not capture seasonal patterns
+  - CPU-focused; memory and network are secondary signals
+  - Pricing based on EC2 on-demand rates (no reserved/spot)
+  - SAP enterprise workloads may not generalize to other clouds
+
+ethical_considerations:
+  - Recommendations should be validated by infrastructure teams
+  - Aggressive termination of "zombie" VMs risks service disruption
+  - Risk scores provide safety margins for conservative adoption
