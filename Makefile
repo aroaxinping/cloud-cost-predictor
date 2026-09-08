@@ -1,4 +1,4 @@
-.PHONY: setup ingest train predict app demo docker lint test clean all help
+.PHONY: setup ingest train validate predict app demo docker lint test clean all help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -12,7 +12,10 @@ ingest: ## Stream raw SAP data and build VM summaries
 train: ## Execute the model training notebook
 	uv run jupyter nbconvert --to notebook --execute notebooks/03_predictive_model.ipynb
 
-predict: ## Run predictions on VM utilization data
+validate: ## Validate clean data before prediction
+	uv run python src/validate.py
+
+predict: validate ## Run predictions on VM utilization data
 	uv run python src/predict.py
 
 app: ## Launch the Streamlit dashboard
