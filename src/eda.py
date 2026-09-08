@@ -1,11 +1,12 @@
 """EDA: fleet-level waste analysis and per-VM utilization profiles."""
 import csv
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "clean"
 
-def classify_vm(cpu_mean, mem_mean, cpu_p95):
+
+def classify_vm(cpu_mean: float, mem_mean: float, cpu_p95: float) -> str:
     """Classify a VM into an actionable bucket."""
     if cpu_mean < 5 and mem_mean < 20:
         return "zombie"
@@ -19,12 +20,13 @@ def classify_vm(cpu_mean, mem_mean, cpu_p95):
         return "hot"
     return "review"
 
-def load_and_classify():
+
+def load_and_classify() -> list[dict]:
     """Load VM summary and add classification."""
-    vms = []
+    vms: list[dict] = []
     with open(DATA / "vm_utilization_summary.csv") as f:
         for row in csv.DictReader(f):
-            vm = {k: row[k] for k in ("instance",)}
+            vm: dict = {k: row[k] for k in ("instance",)}
             for k in ("cpu_mean", "cpu_median", "cpu_p5", "cpu_p95", "cpu_min", "cpu_max",
                        "mem_mean", "mem_median", "mem_p5", "mem_p95", "mem_min", "mem_max"):
                 vm[k] = float(row[k])
@@ -34,7 +36,8 @@ def load_and_classify():
             vms.append(vm)
     return vms
 
-def fleet_summary(vms):
+
+def fleet_summary(vms: list[dict]) -> None:
     """Print fleet-level statistics."""
     n = len(vms)
     classes = Counter(v["class"] for v in vms)
@@ -55,7 +58,8 @@ def fleet_summary(vms):
         idx = min(len(cpu_means)-1, int(len(cpu_means)*pct/100))
         print(f"  P{pct:>2}: {cpu_means[idx]:6.1f}%")
 
-def write_classified(vms, out_path=None):
+
+def write_classified(vms: list[dict], out_path: Path | None = None) -> None:
     """Write classified VM data."""
     if out_path is None:
         out_path = DATA / "vm_classified.csv"
@@ -69,6 +73,7 @@ def write_classified(vms, out_path=None):
             row = {k: round(v, 2) if isinstance(v := vm[k], float) else v for k in fields}
             w.writerow(row)
     print(f"Wrote {out_path} ({len(vms)} rows)")
+
 
 if __name__ == "__main__":
     vms = load_and_classify()
