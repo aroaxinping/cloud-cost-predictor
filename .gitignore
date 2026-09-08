@@ -9,6 +9,5 @@ data/raw/
 .DS_Store
 .ipynb_checkpoints/
 models/*.pkl
-#models/*.joblib
 .env
 .claude/
