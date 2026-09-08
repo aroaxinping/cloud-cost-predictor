@@ -113,49 +113,52 @@ src/
   eda.py              <- classify VMs (zombie/idle/oversized/right-sized/hot)
   pricing.py          <- map to EC2 pricing, estimate waste
   predict.py          <- load models, generate recommendations
+  validate.py         <- data integrity checks
 scripts/
   export_figures.py   <- generate publication-ready figures
-models/               <- trained XGBoost models (.json)
-tests/                <- smoke tests for prediction pipeline
+  fetch_ec2_pricing.py <- refresh EC2 rates from AWS Bulk API
+models/               <- trained XGBoost models (.json) + model card
+tests/                <- 29 tests (predict, eda, pricing, validation, integration)
 reports/
   figures/            <- generated plots
 config.yaml           <- model hyperparameters and thresholds
-Dockerfile            <- containerized deployment
-Makefile              <- setup/train/predict/app targets
+pyproject.toml        <- dependencies and tool config (uv)
+Dockerfile            <- containerized deployment with health check
+Makefile              <- setup/train/predict/app targets (make help)
 ```
 
 ## Setup
 
+Requires [uv](https://docs.astral.sh/uv/) (recommended) or pip.
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# With uv (recommended)
+uv sync --extra dev --extra notebooks
+
+# Or with pip
+pip install -e ".[dev,notebooks]"
 ```
 
 ## Usage
 
 ```bash
-# Ingest SAP dataset (requires sap.zip in data/raw/)
-python src/ingest.py
+# Full pipeline
+make all
 
-# Run fleet analysis
-python src/eda.py
+# Or step by step:
+make ingest     # Stream SAP dataset (requires sap.zip in data/raw/)
+make train      # Train models via notebook execution
+make predict    # Validate data + generate recommendations
+make app        # Launch the Streamlit dashboard
 
-# Estimate costs
-python src/pricing.py
+# Pass a custom CSV
+uv run python src/predict.py --input path/to/summary.csv --output output.csv
 
-# Generate predictions from trained models
-python src/predict.py
+# Docker
+make docker
 
-# Or pass a custom CSV
-python src/predict.py path/to/vm_utilization_summary.csv output.csv
-
-# Launch the dashboard
-streamlit run app.py
-
-# Or use Docker
-docker build -t cloud-cost-predictor .
-docker run -p 8501:8501 cloud-cost-predictor
+# See all targets
+make help
 ```
 
 ## A Note on the Data
