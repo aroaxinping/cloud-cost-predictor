@@ -1,11 +1,8 @@
 """Smoke tests for prediction pipeline."""
 import csv
 import tempfile
-from pathlib import Path
 
-import numpy as np
-
-from src.predict import recommend, assess_risk, build_features_from_summary
+from src.predict import assess_risk, build_features_from_summary, recommend
 
 THRESHOLDS = {"terminate_cpu": 5, "downsize_cpu": 20, "review_cpu": 50}
 MARGINS = {

@@ -28,7 +28,7 @@ OFFERS_INDEX = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC
 
 def fetch_region_url(region):
     """Get the pricing file URL for a specific region."""
-    print(f"Fetching region index...")
+    print("Fetching region index...")
     with urllib.request.urlopen(OFFERS_INDEX, timeout=30) as resp:
         index = json.load(resp)
     region_data = index["regions"].get(region)
@@ -47,7 +47,7 @@ def fetch_prices_from_csv(csv_url, instance_types):
     import csv
     import io
 
-    print(f"Streaming pricing CSV (this may take a moment)...")
+    print("Streaming pricing CSV (this may take a moment)...")
     prices = {}
     target = set(instance_types)
 

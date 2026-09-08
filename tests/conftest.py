@@ -1,10 +1,8 @@
 """Shared test fixtures."""
 import csv
-import tempfile
 from pathlib import Path
 
 import pytest
-
 
 SUMMARY_HEADER = [
     "instance", "cpu_mean", "cpu_median", "cpu_p5", "cpu_p95",

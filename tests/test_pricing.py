@@ -1,5 +1,5 @@
 """Tests for pricing module."""
-from src.pricing import SIZE_TO_EC2, DOWNSIZE_TO
+from src.pricing import DOWNSIZE_TO, SIZE_TO_EC2
 
 
 def test_all_ec2_types_have_downsize_path():

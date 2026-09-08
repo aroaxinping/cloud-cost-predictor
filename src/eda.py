@@ -53,7 +53,7 @@ def fleet_summary(vms: list[dict]) -> None:
     print(f"\nWaste candidates: {len(waste_candidates):,} ({len(waste_candidates)/n*100:.1f}%)")
 
     cpu_means = sorted(v["cpu_mean"] for v in vms)
-    print(f"\nCPU utilization distribution:")
+    print("\nCPU utilization distribution:")
     for pct in (5, 25, 50, 75, 90, 95, 99):
         idx = min(len(cpu_means)-1, int(len(cpu_means)*pct/100))
         print(f"  P{pct:>2}: {cpu_means[idx]:6.1f}%")

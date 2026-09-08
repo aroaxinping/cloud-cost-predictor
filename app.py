@@ -5,12 +5,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import xgboost as xgb
 
-from src.predict import recommend, assess_risk, estimate_savings, load_fleet_avg_hourly
+from src.predict import assess_risk, estimate_savings, load_fleet_avg_hourly, recommend
 
 # ---------------------------------------------------------------------------
 # Paths
