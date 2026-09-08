@@ -45,11 +45,11 @@ classified["display_class"] = classified["class"].replace({"review": "oversized"
 # ---------------------------------------------------------------------------
 
 WASTE_COLORS = {
-    "zombie": "#D32F2F",
-    "idle": "#E64A19",
-    "oversized": "#F57C00",
-    "right-sized": "#43A047",
-    "hot": "#1565C0",
+    "zombie": "#EF4444",
+    "idle": "#FACC15",
+    "oversized": "#F59E0B",
+    "right-sized": "#22C55E",
+    "hot": "#FF6B00",
 }
 CATEGORY_ORDER = ["zombie", "idle", "oversized", "right-sized", "hot"]
 
@@ -151,7 +151,7 @@ ax_num.text(
     f"${total_savings / 1e6:.1f}M/mo",
     fontsize=44,
     fontweight="bold",
-    color="#D32F2F",
+    color="#EF4444",
     ha="center",
     va="center",
 )
@@ -193,10 +193,10 @@ print(f"Saved {OUT / 'linkedin_waste.png'}")
 # ---------------------------------------------------------------------------
 
 ACTION_COLORS = {
-    "terminate": "#D32F2F",
-    "downsize": "#E64A19",
-    "review": "#FBC02D",
-    "keep": "#43A047",
+    "terminate": "#EF4444",
+    "downsize": "#F59E0B",
+    "review": "#94A3B8",
+    "keep": "#22C55E",
 }
 
 fig2, ax2 = plt.subplots(figsize=(12, 7))
@@ -282,7 +282,7 @@ print(f"Saved {OUT / 'linkedin_model.png'}")
 # Figure 3: Savings Breakdown
 # ---------------------------------------------------------------------------
 
-TEAL = "#00D4AA"
+TEAL = "#22C55E"
 
 # Aggregate savings by action using fleet-level data
 # terminate -> zombie_savings, downsize -> downsize_savings

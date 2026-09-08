@@ -1,7 +1,6 @@
-"""Cloud Cost Predictor -- Interactive Streamlit Dashboard."""
+"""Cloud Cost Predictor: Interactive Streamlit Dashboard."""
 
-import io
-import tempfile
+import json
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +9,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import xgboost as xgb
+
+from src.predict import recommend, assess_risk, estimate_savings, load_fleet_avg_hourly
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -21,14 +22,14 @@ MODELS = ROOT / "models"
 # ---------------------------------------------------------------------------
 # Theme colors
 # ---------------------------------------------------------------------------
-TEAL = "#00D4AA"
-RED = "#FF6B6B"
-YELLOW = "#FFD93D"
-TEAL2 = "#4ECDC4"
-DARK_BG = "#0E1117"
-CARD_BG = "#1E2130"
+GREEN = "#22C55E"
+RED = "#EF4444"
+AMBER = "#F59E0B"
+GRAY = "#94A3B8"
+DARK_BG = "#000000"
+CARD_BG = "#0A1628"
 TEXT = "#FAFAFA"
-TEXT_DIM = "#8B949E"
+TEXT_DIM = "#94A3B8"
 
 # Plotly template
 PLOTLY_LAYOUT = dict(
@@ -58,8 +59,8 @@ def inject_css():
 
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background-color: #0A0D14;
-        border-right: 1px solid #1E2130;
+        background-color: #000000;
+        border-right: 1px solid #0A1628;
     }
     [data-testid="stSidebar"] .stRadio label {
         color: #FAFAFA;
@@ -69,12 +70,13 @@ def inject_css():
 
     /* KPI card */
     .kpi-card {
-        background: linear-gradient(135deg, #1E2130 0%, #262940 100%);
+        background: linear-gradient(135deg, #0A1628 0%, #0F1D33 100%);
         border-radius: 12px;
         padding: 1.5rem;
         text-align: center;
-        border: 1px solid #2D3250;
+        border: 1px solid #0F1D33;
         transition: transform 0.2s ease;
+        margin-bottom: 1rem;
     }
     .kpi-card:hover {
         transform: translateY(-2px);
@@ -107,7 +109,7 @@ def inject_css():
         margin: 1rem 0 2rem 0;
     }
     .story-text strong {
-        color: #00D4AA;
+        color: #FAFAFA;
     }
 
     /* Section headers */
@@ -115,9 +117,9 @@ def inject_css():
         font-size: 1.3rem;
         font-weight: 600;
         color: #FAFAFA;
-        margin: 2rem 0 1rem 0;
+        margin: 3.5rem 0 1.5rem 0;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #00D4AA;
+        border-bottom: 2px solid #4B5563;
         display: inline-block;
     }
 
@@ -127,7 +129,7 @@ def inject_css():
         padding: 2rem 0 1rem 0;
         color: #6B7280;
         font-size: 0.8rem;
-        border-top: 1px solid #1E2130;
+        border-top: 1px solid #0A1628;
         margin-top: 3rem;
     }
 
@@ -182,7 +184,7 @@ def load_models():
 # ---------------------------------------------------------------------------
 # Helper: KPI card
 # ---------------------------------------------------------------------------
-def kpi_card(value, label, context="", color=TEAL):
+def kpi_card(value, label, context="", color=GREEN):
     st.markdown(f"""
     <div class="kpi-card">
         <p class="kpi-value" style="color: {color};">{value}</p>
@@ -198,7 +200,10 @@ def kpi_card(value, label, context="", color=TEAL):
 def footer():
     st.markdown("""
     <div class="app-footer">
-        Built by Aroa  |  Data: SAP Cloud Infrastructure Dataset (CC BY 4.0)
+        Built by Aroa &nbsp;|&nbsp;
+        <a href="https://github.com/aroaxinping" target="_blank"
+           style="color: #C9D1D9; text-decoration: none;">GitHub</a> &nbsp;|&nbsp;
+        Data: SAP Cloud Infrastructure Dataset (CC BY 4.0)
     </div>
     """, unsafe_allow_html=True)
 
@@ -219,15 +224,15 @@ def page_problem():
     c1, c2, c3 = st.columns(3)
     with c1:
         kpi_card("$11.0M/mo", "Total Fleet Spend",
-                 "123K VMs across 9 instance types", TEAL2)
+                 "123K VMs across 9 instance types", TEXT)
     with c2:
         kpi_card("$5.9M/mo", "Wasted",
                  "Enough to fund 50 full-time engineers", RED)
     with c3:
         kpi_card("54.2%", "Waste Rate",
-                 "More than half of every dollar, gone", YELLOW)
+                 "More than half of every dollar, gone", AMBER)
 
-    st.markdown("")  # spacer
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Classification donut + CPU histogram side by side
     classified = load_classified()
@@ -237,12 +242,12 @@ def page_problem():
     # Order and color
     class_order = ["idle", "oversized", "zombie", "right-sized", "review", "hot"]
     class_colors = {
-        "idle": "#FF6B6B",
-        "oversized": "#FFD93D",
-        "zombie": "#FF4757",
-        "right-sized": "#00D4AA",
-        "review": "#4ECDC4",
-        "hot": "#FF9F43",
+        "idle": "#FACC15",
+        "oversized": "#F59E0B",
+        "zombie": "#EF4444",
+        "right-sized": "#22C55E",
+        "review": "#94A3B8",
+        "hot": "#FF6B00",
     }
     class_counts["class"] = pd.Categorical(
         class_counts["class"], categories=class_order, ordered=True
@@ -259,15 +264,18 @@ def page_problem():
             values=class_counts["count"],
             hole=0.55,
             marker=dict(
-                colors=[class_colors.get(c, TEAL) for c in class_counts["class"]]
+                colors=[class_colors.get(c, GRAY) for c in class_counts["class"]]
             ),
             textinfo="label+percent",
-            textfont=dict(size=13),
+            textposition="auto",
+            insidetextorientation="horizontal",
+            outsidetextfont=dict(size=12, color=TEXT),
+            insidetextfont=dict(size=12, color="#000000"),
             hovertemplate="%{label}: %{value:,} VMs (%{percent})<extra></extra>",
         ))
         fig_donut.update_layout(
             **PLOTLY_LAYOUT,
-            height=400,
+            height=450,
             showlegend=False,
             annotations=[dict(
                 text="123K<br>VMs",
@@ -284,7 +292,7 @@ def page_problem():
         fig_hist = go.Figure(go.Histogram(
             x=util["cpu_mean"],
             nbinsx=80,
-            marker_color=TEAL,
+            marker_color=GRAY,
             opacity=0.85,
             hovertemplate="CPU %{x:.0f}%: %{y:,} VMs<extra></extra>",
         ))
@@ -297,8 +305,8 @@ def page_problem():
             height=400,
             xaxis_title="Mean CPU Utilization (%)",
             yaxis_title="VM Count",
-            xaxis=dict(gridcolor="#1E2130"),
-            yaxis=dict(gridcolor="#1E2130"),
+            xaxis=dict(gridcolor="#0A1628"),
+            yaxis=dict(gridcolor="#0A1628"),
         )
         st.plotly_chart(fig_hist, use_container_width=True)
 
@@ -332,7 +340,7 @@ def page_problem():
         x=fleet_sorted["downsize_savings"],
         name="Oversize waste",
         orientation="h",
-        marker_color=YELLOW,
+        marker_color=AMBER,
         hovertemplate="%{y}: $%{x:,.0f}/mo oversize waste<extra></extra>",
     ))
     fig_spend.add_trace(go.Bar(
@@ -340,7 +348,7 @@ def page_problem():
         x=fleet_sorted["monthly_cost"] - fleet_sorted["zombie_savings"] - fleet_sorted["downsize_savings"],
         name="Useful spend",
         orientation="h",
-        marker_color=TEAL,
+        marker_color=GREEN,
         hovertemplate="%{y}: $%{x:,.0f}/mo useful spend<extra></extra>",
     ))
     fig_spend.update_layout(
@@ -349,8 +357,8 @@ def page_problem():
         barmode="stack",
         xaxis_title="Monthly Cost ($)",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(gridcolor="#1E2130"),
-        yaxis=dict(gridcolor="#1E2130"),
+        xaxis=dict(gridcolor="#0A1628"),
+        yaxis=dict(gridcolor="#0A1628"),
     )
     st.plotly_chart(fig_spend, use_container_width=True)
 
@@ -359,6 +367,20 @@ def page_problem():
         The r5.8xlarge tier alone wastes <strong>$1.6M/month</strong> on VMs that
         could be downsized or terminated. These are big machines doing small jobs.
     </p>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #0A1628, #0F1D33);
+                border: 1px solid #4B5563; border-radius: 12px;
+                padding: 2rem; text-align: center; margin: 2rem 0;">
+        <p style="font-size: 1.2rem; color: #FAFAFA; margin: 0 0 0.5rem 0;">
+            So how do we decide which VMs to act on <strong style="color: #22C55E;">safely</strong>?
+        </p>
+        <p style="font-size: 0.95rem; color: #8B949E; margin: 0;">
+            Head to <strong>The Model</strong> to see how quantile regression
+            separates confident savings from risky ones.
+        </p>
+    </div>
     """, unsafe_allow_html=True)
 
     footer()
@@ -381,13 +403,15 @@ def page_model():
     # Metrics
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        kpi_card("1.71%", "MAE", "Median absolute error on CPU %", TEAL)
+        kpi_card("1.71%", "MAE", "Median absolute error on CPU %", TEXT)
     with c2:
-        kpi_card("85.6%", "Coverage", "Predictions above actual usage", TEAL2)
+        kpi_card("85.6%", "Coverage", "Predictions above actual usage", TEXT)
     with c3:
-        kpi_card("5.4%", "Underprediction", "Rate we miss on the low side", YELLOW)
+        kpi_card("5.4%", "Underprediction", "Rate we miss on the low side", AMBER)
     with c4:
         kpi_card("3x", "Penalty", "Asymmetric loss on underprediction", RED)
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Quantile regression explanation
     st.markdown('<p class="section-header">Quantile Regression: Three Predictions per VM</p>',
@@ -426,12 +450,12 @@ def page_model():
             symmetric=False,
             array=(sample_df["pred_high"] - sample_df["pred_mid"]).tolist(),
             arrayminus=(sample_df["pred_mid"] - sample_df["pred_low"]).tolist(),
-            color=TEAL2,
+            color=TEXT_DIM,
             thickness=3,
             width=10,
         ),
         mode="markers",
-        marker=dict(size=12, color=TEAL, symbol="diamond"),
+        marker=dict(size=12, color=TEXT_DIM, symbol="diamond"),
         name="Prediction range",
         hovertemplate=(
             "%{x}<br>"
@@ -447,7 +471,7 @@ def page_model():
         x=sample_df["vm_label"],
         y=sample_df["actual_cpu"],
         mode="markers",
-        marker=dict(size=10, color=YELLOW, symbol="x"),
+        marker=dict(size=10, color=AMBER, symbol="x"),
         name="Actual CPU",
         hovertemplate="%{x}<br>Actual: %{y:.1f}%<extra></extra>",
     ))
@@ -457,17 +481,17 @@ def page_model():
                     annotation_text="Terminate threshold (5%)",
                     annotation_position="top left",
                     annotation_font_color=RED)
-    fig_q.add_hline(y=20, line_dash="dot", line_color=YELLOW,
+    fig_q.add_hline(y=20, line_dash="dot", line_color=AMBER,
                     annotation_text="Downsize threshold (20%)",
                     annotation_position="top left",
-                    annotation_font_color=YELLOW)
+                    annotation_font_color=AMBER)
 
     fig_q.update_layout(
         **PLOTLY_LAYOUT,
         height=420,
         yaxis_title="CPU Utilization (%)",
-        xaxis=dict(gridcolor="#1E2130"),
-        yaxis=dict(gridcolor="#1E2130"),
+        xaxis=dict(gridcolor="#0A1628"),
+        yaxis=dict(gridcolor="#0A1628"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     st.plotly_chart(fig_q, use_container_width=True)
@@ -481,7 +505,7 @@ def page_model():
         st.markdown("""
         <p class="story-text">
             Predicting too high means we keep a VM that could be downsized.
-            That wastes money -- annoying, but harmless.<br><br>
+            That wastes money. Annoying, but harmless.<br><br>
             Predicting too low means we terminate a VM that was actually busy.
             That kills a workload. <strong>The 3x penalty on underprediction
             makes the model err on the side of caution.</strong>
@@ -503,16 +527,16 @@ def page_model():
         fig_loss.add_trace(go.Scatter(
             x=errors, y=asymmetric_loss,
             mode="lines", name="Asymmetric (3x penalty)",
-            line=dict(color=TEAL, width=3),
+            line=dict(color=TEXT, width=3),
         ))
-        fig_loss.add_vline(x=0, line_color="#2D3250")
+        fig_loss.add_vline(x=0, line_color="#0F1D33")
         fig_loss.update_layout(
             **PLOTLY_LAYOUT,
             height=350,
             xaxis_title="Prediction Error (negative = underprediction)",
             yaxis_title="Loss",
-            xaxis=dict(gridcolor="#1E2130"),
-            yaxis=dict(gridcolor="#1E2130"),
+            xaxis=dict(gridcolor="#0A1628"),
+            yaxis=dict(gridcolor="#0A1628"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
         st.plotly_chart(fig_loss, use_container_width=True)
@@ -537,17 +561,39 @@ def page_model():
         x=importances,
         y=feature_names,
         orientation="h",
-        marker_color=[TEAL, TEAL2, TEAL, YELLOW, TEAL2],
+        marker_color=GRAY,
         hovertemplate="%{y}: %{x:.3f}<extra></extra>",
     ))
     fig_feat.update_layout(
         **PLOTLY_LAYOUT,
         height=280,
         xaxis_title="Importance (gain)",
-        xaxis=dict(gridcolor="#1E2130"),
-        yaxis=dict(gridcolor="#1E2130"),
+        xaxis=dict(gridcolor="#0A1628"),
+        yaxis=dict(gridcolor="#0A1628"),
     )
     st.plotly_chart(fig_feat, use_container_width=True)
+
+    # SHAP explainability
+    st.markdown('<p class="section-header">Why Did the Model Decide That?</p>',
+                unsafe_allow_html=True)
+    st.markdown("""
+    <p class="story-text">
+        Feature importance tells us what matters <em>globally</em>. SHAP values
+        tell us what matters <em>for each VM</em>. Below: two real VMs from
+        the fleet, one recommended for termination and one to keep. The bars
+        show how each feature pushed the prediction up (red) or down (blue).
+    </p>
+    """, unsafe_allow_html=True)
+
+    shap_img = ROOT / "reports" / "figures" / "shap_waterfall_example.png"
+    if shap_img.exists():
+        st.image(str(shap_img), use_container_width=True)
+        st.caption(
+            "SHAP waterfall plots (TreeExplainer on the median model). "
+            "Each bar shows a feature's contribution to that VM's predicted CPU usage."
+        )
+    else:
+        st.info("SHAP waterfall plot not found. Run notebook 03 to generate it.")
 
     footer()
 
@@ -577,15 +623,17 @@ def page_recommendations():
     c1, c2, c3 = st.columns(3)
     with c1:
         kpi_card(f"{len(rec):,}", "VMs Scored",
-                 "Every VM gets an action + risk level", TEAL2)
+                 "Every VM gets an action + risk level", TEXT)
     with c2:
         kpi_card(f"${total_savings/1e6:.1f}M/mo", "Potential Savings",
                  f"From ${total_cost/1e6:.1f}M down to ${(total_cost-total_savings)/1e6:.1f}M",
-                 TEAL)
+                 GREEN)
     with c3:
         safe_pct = (rec["risk"] == "safe").mean() * 100
         kpi_card(f"{safe_pct:.0f}%", "Safe Actions",
-                 "Low-risk recommendations we can act on now", TEAL)
+                 "Low-risk recommendations we can act on now", GREEN)
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Actions + Risk side by side
     col1, col2 = st.columns(2)
@@ -597,14 +645,14 @@ def page_recommendations():
         action_counts.columns = ["action", "count"]
         action_colors = {
             "terminate": RED,
-            "downsize": YELLOW,
-            "review": TEAL2,
-            "keep": TEAL,
+            "downsize": AMBER,
+            "review": GRAY,
+            "keep": GREEN,
         }
         fig_act = go.Figure(go.Bar(
             x=action_counts["action"],
             y=action_counts["count"],
-            marker_color=[action_colors.get(a, TEAL) for a in action_counts["action"]],
+            marker_color=[action_colors.get(a, GRAY) for a in action_counts["action"]],
             text=action_counts["count"].apply(lambda x: f"{x:,}"),
             textposition="outside",
             textfont=dict(color=TEXT),
@@ -614,8 +662,8 @@ def page_recommendations():
             **PLOTLY_LAYOUT,
             height=380,
             yaxis_title="VM Count",
-            xaxis=dict(gridcolor="#1E2130"),
-            yaxis=dict(gridcolor="#1E2130"),
+            xaxis=dict(gridcolor="#0A1628"),
+            yaxis=dict(gridcolor="#0A1628"),
         )
         st.plotly_chart(fig_act, use_container_width=True)
 
@@ -623,7 +671,7 @@ def page_recommendations():
         st.markdown('<p class="section-header">Risk Distribution</p>',
                     unsafe_allow_html=True)
         risk_order = ["safe", "moderate", "risky"]
-        risk_colors = {"safe": TEAL, "moderate": YELLOW, "risky": RED}
+        risk_colors = {"safe": GREEN, "moderate": AMBER, "risky": RED}
         risk_data = rec[rec["risk"].isin(risk_order)]
         risk_counts = risk_data["risk"].value_counts().reindex(risk_order).reset_index()
         risk_counts.columns = ["risk", "count"]
@@ -641,8 +689,8 @@ def page_recommendations():
             **PLOTLY_LAYOUT,
             height=380,
             yaxis_title="VM Count",
-            xaxis=dict(gridcolor="#1E2130"),
-            yaxis=dict(gridcolor="#1E2130"),
+            xaxis=dict(gridcolor="#0A1628"),
+            yaxis=dict(gridcolor="#0A1628"),
         )
         st.plotly_chart(fig_risk, use_container_width=True)
 
@@ -671,21 +719,58 @@ def page_recommendations():
         ],
         textposition="outside",
         textfont=dict(color=TEXT),
-        connector=dict(line=dict(color="#2D3250")),
-        decreasing=dict(marker=dict(color=TEAL)),
+        connector=dict(line=dict(color="#0F1D33")),
+        decreasing=dict(marker=dict(color=GREEN)),
         increasing=dict(marker=dict(color=RED)),
-        totals=dict(marker=dict(color=TEAL2)),
+        totals=dict(marker=dict(color=GREEN)),
         hovertemplate="%{x}: $%{y:,.0f}/mo<extra></extra>",
     ))
     fig_wf.update_layout(
         **PLOTLY_LAYOUT,
         height=420,
         yaxis_title="Monthly Cost ($)",
-        xaxis=dict(gridcolor="#1E2130"),
-        yaxis=dict(gridcolor="#1E2130"),
+        xaxis=dict(gridcolor="#0A1628"),
+        yaxis=dict(gridcolor="#0A1628"),
         showlegend=False,
     )
     st.plotly_chart(fig_wf, use_container_width=True)
+
+    with st.expander("How are savings calculated?", expanded=False):
+        st.markdown("""
+**Terminate savings** = full monthly cost of the VM (it is doing nothing useful).
+
+**Downsize savings** = 50% of the monthly cost (move to a smaller instance type
+in the same family, e.g. r5.8xlarge to r5.4xlarge).
+
+Costs use real AWS EC2 on-demand prices for us-east-1. Each SAP VM size category
+is mapped to a specific EC2 instance type. The savings are conservative: they
+assume on-demand pricing, not reserved instances or savings plans.
+        """)
+
+    with st.expander("AWS EC2 pricing used", expanded=False):
+        pricing_file = ROOT / "data" / "pricing" / "ec2_on_demand.json"
+        if pricing_file.exists():
+            with open(pricing_file) as f:
+                pricing_data = json.load(f)
+            prices = pricing_data.get("instances", {})
+            price_rows = []
+            for itype, info in sorted(prices.items(), key=lambda x: x[1]["usd_per_hour"]):
+                hourly = info["usd_per_hour"]
+                monthly = hourly * 730
+                price_rows.append({
+                    "Instance Type": itype,
+                    "vCPUs": info.get("vcpus", ""),
+                    "RAM (GB)": info.get("ram_gb", ""),
+                    "Hourly (USD)": f"${hourly:.4f}",
+                    "Monthly (USD)": f"${monthly:,.2f}",
+                })
+            st.dataframe(pd.DataFrame(price_rows), use_container_width=True, hide_index=True)
+            st.caption(
+                f"Source: AWS Bulk Pricing API, region {pricing_data.get('metadata', {}).get('region', 'us-east-1')}. "
+                "Refresh with: python scripts/fetch_ec2_pricing.py"
+            )
+        else:
+            st.info("Pricing file not found. Run scripts/fetch_ec2_pricing.py to generate it.")
 
     # Searchable table
     st.markdown('<p class="section-header">VM Explorer</p>',
@@ -716,13 +801,14 @@ def page_recommendations():
         filtered = filtered[filtered["instance"].str.contains(search, case=False)]
 
     st.dataframe(
-        filtered.style.format({
-            "actual_cpu": "{:.1f}%",
-            "pred_low": "{:.1f}%",
-            "pred_mid": "{:.1f}%",
-            "pred_high": "{:.1f}%",
-            "monthly_savings": "${:.2f}",
-        }),
+        filtered,
+        column_config={
+            "actual_cpu": st.column_config.NumberColumn("Actual CPU", format="%.1f%%"),
+            "pred_low": st.column_config.NumberColumn("Pred Low", format="%.1f%%"),
+            "pred_mid": st.column_config.NumberColumn("Pred Mid", format="%.1f%%"),
+            "pred_high": st.column_config.NumberColumn("Pred High", format="%.1f%%"),
+            "monthly_savings": st.column_config.NumberColumn("Savings", format="$%.2f"),
+        },
         use_container_width=True,
         height=400,
     )
@@ -738,11 +824,33 @@ def page_try_it():
     st.markdown("# Try It")
     st.markdown("""
     <p class="story-text">
-        Upload your own VM utilization data and see what the model recommends.
-        The CSV needs the same columns as <code>vm_utilization_summary.csv</code>:
-        instance, cpu_mean, cpu_median, cpu_p5, cpu_p95, cpu_min, cpu_max, etc.
+        Upload your own VM utilization data and get instant recommendations.
+        The model runs three XGBoost predictions per VM (low, median, high)
+        and classifies each one into <strong>terminate</strong>,
+        <strong>downsize</strong>, <strong>review</strong>, or <strong>keep</strong>
+        based on the 95th percentile prediction.
     </p>
     """, unsafe_allow_html=True)
+
+    with st.expander("How does it work?", expanded=False):
+        st.markdown("""
+**1. Feature extraction.** From your CPU columns, the model computes 5 features:
+standard deviation (volatility), minimum (floor), median (typical load),
+trend (slope over time, defaults to 0 for static data), and coefficient of variation
+(relative spread).
+
+**2. Quantile predictions.** Three XGBoost models predict CPU usage at q=0.10
+(optimistic), q=0.50 (median), and q=0.95 (pessimistic). The 95th percentile
+is the decision threshold: if even the pessimistic estimate says "idle", we're confident.
+
+**3. Decision rules.** If q95 < 5%: terminate (VM is almost certainly idle).
+If q95 < 20%: downsize (oversized but not idle). If q50 < 50%: review manually.
+Otherwise: keep.
+
+**4. Risk scoring.** Each recommendation gets a risk level (safe / moderate / risky)
+based on how far the prediction is from the threshold. A VM predicted at 1% with a
+5% threshold is "safe to terminate"; one at 4.5% is "risky".
+        """)
 
     uploaded = st.file_uploader("Upload a VM utilization CSV", type=["csv"])
 
@@ -778,31 +886,16 @@ def page_try_it():
                 X = np.array(features)
                 preds = {q: models[q].predict(X) for q in [0.10, 0.50, 0.95]}
 
+                avg_hourly = load_fleet_avg_hourly()
                 results = []
                 for i in range(len(df)):
                     low = preds[0.10][i]
                     mid = preds[0.50][i]
                     high = preds[0.95][i]
 
-                    if high < 5:
-                        action = "terminate"
-                    elif high < 20:
-                        action = "downsize"
-                    elif mid < 50:
-                        action = "review"
-                    else:
-                        action = "keep"
-
-                    if action == "terminate":
-                        margin = 5 - high
-                        risk = "safe" if margin > 3 else ("moderate" if margin > 1 else "risky")
-                    elif action == "downsize":
-                        margin = 20 - high
-                        risk = "safe" if margin > 8 else ("moderate" if margin > 3 else "risky")
-                    else:
-                        risk = "n/a"
-
-                    savings = max(0, (X[i, 2] - mid)) * 0.001 * 730
+                    action = recommend(high, mid)
+                    risk = assess_risk(action, high)
+                    savings = estimate_savings(action, avg_hourly, mid)
 
                     results.append({
                         "instance": df.iloc[i]["instance"],
@@ -827,25 +920,25 @@ def page_try_it():
                 kpi_card(str(n_term), "Terminate", "", RED)
             with c2:
                 n_down = (result_df["action"] == "downsize").sum()
-                kpi_card(str(n_down), "Downsize", "", YELLOW)
+                kpi_card(str(n_down), "Downsize", "", AMBER)
             with c3:
                 n_rev = (result_df["action"] == "review").sum()
-                kpi_card(str(n_rev), "Review", "", TEAL2)
+                kpi_card(str(n_rev), "Review", "", GRAY)
             with c4:
                 n_keep = (result_df["action"] == "keep").sum()
-                kpi_card(str(n_keep), "Keep", "", TEAL)
+                kpi_card(str(n_keep), "Keep", "", GREEN)
 
             # Action breakdown chart
             action_summary = result_df["action"].value_counts().reset_index()
             action_summary.columns = ["action", "count"]
             action_colors = {
-                "terminate": RED, "downsize": YELLOW,
-                "review": TEAL2, "keep": TEAL,
+                "terminate": RED, "downsize": AMBER,
+                "review": GRAY, "keep": GREEN,
             }
             fig = go.Figure(go.Bar(
                 x=action_summary["action"],
                 y=action_summary["count"],
-                marker_color=[action_colors.get(a, TEAL) for a in action_summary["action"]],
+                marker_color=[action_colors.get(a, GRAY) for a in action_summary["action"]],
                 text=action_summary["count"],
                 textposition="outside",
                 textfont=dict(color=TEXT),
@@ -854,20 +947,21 @@ def page_try_it():
                 **PLOTLY_LAYOUT,
                 height=320,
                 yaxis_title="VM Count",
-                xaxis=dict(gridcolor="#1E2130"),
-                yaxis=dict(gridcolor="#1E2130"),
+                xaxis=dict(gridcolor="#0A1628"),
+                yaxis=dict(gridcolor="#0A1628"),
             )
             st.plotly_chart(fig, use_container_width=True)
 
             # Results table
             st.dataframe(
-                result_df.style.format({
-                    "actual_cpu": "{:.1f}%",
-                    "pred_low": "{:.1f}%",
-                    "pred_mid": "{:.1f}%",
-                    "pred_high": "{:.1f}%",
-                    "monthly_savings": "${:.2f}",
-                }),
+                result_df,
+                column_config={
+                    "actual_cpu": st.column_config.NumberColumn("Actual CPU", format="%.1f%%"),
+                    "pred_low": st.column_config.NumberColumn("Pred Low", format="%.1f%%"),
+                    "pred_mid": st.column_config.NumberColumn("Pred Mid", format="%.1f%%"),
+                    "pred_high": st.column_config.NumberColumn("Pred High", format="%.1f%%"),
+                    "monthly_savings": st.column_config.NumberColumn("Savings", format="$%.2f"),
+                },
                 use_container_width=True,
                 height=400,
             )
@@ -898,6 +992,14 @@ def page_try_it():
         ]
         st.dataframe(sample, use_container_width=True)
 
+        sample_csv = sample.to_csv(index=False)
+        st.download_button(
+            "Download sample CSV to try",
+            sample_csv,
+            file_name="sample_vm_utilization.csv",
+            mime="text/csv",
+        )
+
     footer()
 
 
@@ -913,15 +1015,13 @@ def main():
     )
     inject_css()
 
+    logo_path = ROOT / "assets" / "logo.svg"
+    icon_path = ROOT / "assets" / "logo_icon.svg"
+    if logo_path.exists() and icon_path.exists():
+        st.logo(str(logo_path), icon_image=str(icon_path))
+
     # Sidebar navigation
     with st.sidebar:
-        st.markdown("## Cloud Cost Predictor")
-        st.markdown(
-            '<p style="color: #8B949E; font-size: 0.85rem;">'
-            "Turning 123K VMs into actionable savings"
-            "</p>",
-            unsafe_allow_html=True,
-        )
         st.markdown("---")
         page = st.radio(
             "Navigate",
@@ -935,6 +1035,17 @@ def main():
             "q=0.95 decision threshold<br>"
             "3x asymmetric loss<br>"
             "5 features after VIF cleanup"
+            "</p>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("---")
+        st.markdown(
+            '<p style="font-size: 0.8rem; color: #8B949E;">'
+            '<a href="https://github.com/aroaxinping" target="_blank" '
+            'style="color: #C9D1D9; text-decoration: none;">GitHub</a>'
+            " &nbsp;|&nbsp; "
+            '<a href="https://linkedin.com/in/aroaxinping" target="_blank" '
+            'style="color: #C9D1D9; text-decoration: none;">LinkedIn</a>'
             "</p>",
             unsafe_allow_html=True,
         )
