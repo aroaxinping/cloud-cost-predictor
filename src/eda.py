@@ -7,17 +7,23 @@ DATA = Path(__file__).resolve().parent.parent / "data" / "clean"
 
 
 def classify_vm(cpu_mean: float, mem_mean: float, cpu_p95: float) -> str:
-    """Classify a VM into an actionable bucket."""
+    """Classify a VM into an actionable bucket.
+
+    Memory-aware: high memory usage prevents zombie/idle classification
+    even when CPU is low, avoiding unsafe termination of memory-bound VMs.
+    """
     if cpu_mean < 5 and mem_mean < 20:
         return "zombie"
-    if cpu_p95 < 10:
-        return "idle"
-    if cpu_mean < 20 and cpu_p95 < 50:
-        return "oversized"
-    if cpu_mean >= 20 and cpu_mean < 80:
-        return "right-sized"
     if cpu_mean >= 80:
         return "hot"
+    if mem_mean >= 80:
+        return "right-sized"
+    if cpu_p95 < 10 and mem_mean < 50:
+        return "idle"
+    if cpu_mean < 20 and cpu_p95 < 50 and mem_mean < 50:
+        return "oversized"
+    if cpu_mean >= 20:
+        return "right-sized"
     return "review"
 
 

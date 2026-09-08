@@ -17,6 +17,17 @@ thresholds:
   downsize_cpu: 20
   review_cpu: 50
 
+classification:
+  zombie_cpu_max: 5
+  zombie_mem_max: 20
+  idle_cpu_p95_max: 10
+  idle_mem_max: 50
+  oversized_cpu_mean_max: 20
+  oversized_cpu_p95_max: 50
+  oversized_mem_max: 50
+  hot_cpu_min: 80
+  memory_bound_min: 80
+
 risk_margins:
   terminate:
     safe: 3
