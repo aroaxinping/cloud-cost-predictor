@@ -7,37 +7,43 @@ import numpy as np
 
 from src.predict import recommend, assess_risk, build_features_from_summary
 
+THRESHOLDS = {"terminate_cpu": 5, "downsize_cpu": 20, "review_cpu": 50}
+MARGINS = {
+    "terminate": {"safe": 3, "moderate": 1},
+    "downsize": {"safe": 8, "moderate": 3},
+}
+
 
 def test_recommend_terminate():
-    assert recommend(pred_high=3.0, pred_mid=1.0) == "terminate"
+    assert recommend(pred_high=3.0, pred_mid=1.0, thresholds=THRESHOLDS) == "terminate"
 
 
 def test_recommend_downsize():
-    assert recommend(pred_high=15.0, pred_mid=10.0) == "downsize"
+    assert recommend(pred_high=15.0, pred_mid=10.0, thresholds=THRESHOLDS) == "downsize"
 
 
 def test_recommend_review():
-    assert recommend(pred_high=30.0, pred_mid=25.0) == "review"
+    assert recommend(pred_high=30.0, pred_mid=25.0, thresholds=THRESHOLDS) == "review"
 
 
 def test_recommend_keep():
-    assert recommend(pred_high=60.0, pred_mid=55.0) == "keep"
+    assert recommend(pred_high=60.0, pred_mid=55.0, thresholds=THRESHOLDS) == "keep"
 
 
 def test_risk_terminate_safe():
-    assert assess_risk("terminate", 1.0) == "safe"
+    assert assess_risk("terminate", 1.0, margins=MARGINS) == "safe"
 
 
 def test_risk_terminate_risky():
-    assert assess_risk("terminate", 4.5) == "risky"
+    assert assess_risk("terminate", 4.5, margins=MARGINS) == "risky"
 
 
 def test_risk_downsize_safe():
-    assert assess_risk("downsize", 10.0) == "safe"
+    assert assess_risk("downsize", 10.0, margins=MARGINS) == "safe"
 
 
 def test_risk_keep_na():
-    assert assess_risk("keep", 60.0) == "n/a"
+    assert assess_risk("keep", 60.0, margins=MARGINS) == "n/a"
 
 
 def test_build_features_with_std():

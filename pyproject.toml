@@ -16,6 +16,7 @@ dependencies = [
     "streamlit>=1.28",
     "plotly>=5.15",
     "shap>=0.42",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -39,3 +40,4 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
