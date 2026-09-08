@@ -83,32 +83,30 @@ def build_features_from_summary(csv_path):
 
 
 def recommend(pred_high: float, pred_mid: float, thresholds: dict | None = None) -> str:
-    if thresholds is None:
-        thresholds = load_config()["thresholds"]
-    if pred_high < thresholds["terminate_cpu"]:
+    t: dict = thresholds if thresholds is not None else load_config()["thresholds"]
+    if pred_high < t["terminate_cpu"]:
         return "terminate"
-    if pred_high < thresholds["downsize_cpu"]:
+    if pred_high < t["downsize_cpu"]:
         return "downsize"
-    if pred_mid < thresholds["review_cpu"]:
+    if pred_mid < t["review_cpu"]:
         return "review"
     return "keep"
 
 
 def assess_risk(action: str, pred_high: float, margins: dict | None = None) -> str:
-    if margins is None:
-        margins = load_config()["risk_margins"]
+    m: dict = margins if margins is not None else load_config()["risk_margins"]
     if action == "terminate":
         margin = 5 - pred_high
-        if margin > margins["terminate"]["safe"]:
+        if margin > m["terminate"]["safe"]:
             return "safe"
-        if margin > margins["terminate"]["moderate"]:
+        if margin > m["terminate"]["moderate"]:
             return "moderate"
         return "risky"
     elif action == "downsize":
         margin = 20 - pred_high
-        if margin > margins["downsize"]["safe"]:
+        if margin > m["downsize"]["safe"]:
             return "safe"
-        if margin > margins["downsize"]["moderate"]:
+        if margin > m["downsize"]["moderate"]:
             return "moderate"
         return "risky"
     return "n/a"

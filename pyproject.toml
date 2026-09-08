@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "ruff",
     "pytest",
+    "pyright",
 ]
 notebooks = [
     "jupyter",
@@ -37,6 +38,12 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501", "B905", "SIM115"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+include = ["src"]
+exclude = ["notebooks", ".venv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
