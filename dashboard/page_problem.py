@@ -15,9 +15,11 @@ from dashboard.shared import (
     load_classified,
     load_fleet_costs,
     load_utilization,
+    safe_page,
 )
 
 
+@safe_page
 def page_problem():
     st.markdown("# The Problem")
     st.markdown("""

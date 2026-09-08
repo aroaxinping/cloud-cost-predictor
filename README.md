@@ -3,6 +3,8 @@
 [![CI](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml/badge.svg)](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://img.shields.io/badge/tests-32_passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-35%25_(src)-yellow)
 
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
@@ -71,35 +73,41 @@ SHAP TreeExplainer on the median model provides per-VM feature attribution. The 
 
 ## Architecture
 
-```
-SAP Dataset (123K VMs, 31 days)
-        |
-        v
-  +-----------+      +----------+      +-------------+
-  | ingest.py | ---> |  eda.py  | ---> | pricing.py  |
-  | stream &  |      | classify |      | map to EC2  |
-  | summarize |      | VMs      |      | real prices |
-  +-----------+      +----------+      +-------------+
-        |                                     |
-        v                                     v
-  +------------------+              +------------------+
-  | XGBoost training |              | fleet_cost_      |
-  | q=0.10/0.50/0.95 |              | estimate.csv     |
-  | asymmetric loss  |              +------------------+
-  +------------------+
-        |
-        v
-  +------------------+      +---------------------+
-  | predict.py       | ---> | Streamlit dashboard |
-  | recommend +      |      | 4 interactive pages |
-  | risk scoring     |      | + Try It upload     |
-  +------------------+      +---------------------+
+```mermaid
+flowchart LR
+    subgraph Ingest
+        A[SAP Dataset\n123K VMs · 31 days] --> B[ingest.py\nstream & summarize]
+    end
+
+    subgraph Analyze
+        B --> C[eda.py\nclassify VMs]
+        B --> D[pricing.py\nmap to EC2 rates]
+        C --> E[vm_classified.csv]
+        D --> F[fleet_cost_estimate.csv]
+    end
+
+    subgraph Model
+        B --> G[XGBoost training\nq=0.10 · 0.50 · 0.95\nasymmetric loss 3×]
+        G --> H[predict.py\nrecommend + risk score]
+    end
+
+    subgraph Dashboard
+        H --> I[Streamlit app\n4 pages + Try It]
+        E --> I
+        F --> I
+    end
 ```
 
 ## Project Structure
 
 ```
-app.py                <- Streamlit dashboard
+app.py                <- Streamlit entry point (thin router)
+dashboard/
+  shared.py           <- colors, layouts, data loaders, CSS
+  page_problem.py     <- fleet waste overview
+  page_model.py       <- model explainer (quantiles, SHAP, loss)
+  page_recommendations.py <- actions, savings, sensitivity
+  page_try_it.py      <- upload your own data
 data/
   raw/                <- source data (not tracked)
   clean/              <- processed datasets
@@ -110,7 +118,7 @@ notebooks/
   03_predictive_model.ipynb
 src/
   ingest.py           <- stream SAP zip to per-VM summaries
-  eda.py              <- classify VMs (zombie/idle/oversized/right-sized/hot)
+  eda.py              <- classify VMs (memory-aware classification)
   pricing.py          <- map to EC2 pricing, estimate waste
   predict.py          <- load models, generate recommendations
   validate.py         <- data integrity checks
@@ -118,9 +126,10 @@ scripts/
   export_figures.py   <- generate publication-ready figures
   fetch_ec2_pricing.py <- refresh EC2 rates from AWS Bulk API
 models/               <- trained XGBoost models (.json) + model card
-tests/                <- 29 tests (predict, eda, pricing, validation, integration)
+tests/                <- 32 tests (predict, eda, pricing, validation, integration)
 reports/
   figures/            <- generated plots
+  coverage/           <- HTML coverage report
 config.yaml           <- model hyperparameters and thresholds
 pyproject.toml        <- dependencies and tool config (uv)
 Dockerfile            <- containerized deployment with health check
@@ -172,13 +181,13 @@ The SAP dataset is from August 2024. This does not affect the analysis:
 ## Limitations
 
 - **No temporal trend in inference.** The `trend` feature (slope of daily CPU) is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
-- **CPU-only recommendations.** Memory utilization data exists in the pipeline but is not used in the decision logic. A VM with low CPU but high memory would be flagged for termination incorrectly.
+- **Memory thresholds are heuristic.** The classification checks memory to prevent terminating memory-bound VMs (>80% mem = right-sized), but the predict model itself does not use memory features. A future version could add memory quantile predictions.
 - **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining to capture seasonal patterns and fleet changes.
 - **Compute-only cost model.** Savings estimates use real EC2 on-demand prices (refreshable via `scripts/fetch_ec2_pricing.py`) but do not account for storage, networking, reserved instances, or volume discounts.
 
 ## Next Steps
 
-- **Memory-aware recommendations:** incorporate `mem_mean` into the decision thresholds so high-memory VMs are not incorrectly flagged
+- **Memory quantile predictions:** train a parallel memory model so recommendations consider both CPU and memory utilization forecasts
 - **SHAP-based recommendation explanations:** surface the top-3 features driving each VM's recommendation in the dashboard and CSV output
 - **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
 - **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost, since many "idle" VMs may already be covered by reservations

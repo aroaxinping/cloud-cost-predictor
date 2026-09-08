@@ -35,6 +35,7 @@ notebooks = [
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+exclude = [".cache", ".venv", "notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -1,4 +1,5 @@
 """Shared constants, data loaders, and helper components."""
+from functools import wraps
 from pathlib import Path
 
 import pandas as pd
@@ -122,31 +123,55 @@ def inject_css():
     """, unsafe_allow_html=True)
 
 
+class DataNotReady(Exception):
+    pass
+
+
+def _check_file(path: Path) -> Path:
+    if not path.exists():
+        raise DataNotReady(
+            f"**{path.name}** not found.  \n"
+            "Run `make all` (or the individual pipeline steps) to generate the data files."
+        )
+    return path
+
+
+def safe_page(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except DataNotReady as e:
+            st.error(str(e))
+            st.stop()
+    return wrapper
+
+
 @st.cache_data
 def load_utilization():
-    return pd.read_csv(DATA / "vm_utilization_summary.csv")
+    return pd.read_csv(_check_file(DATA / "vm_utilization_summary.csv"))
 
 
 @st.cache_data
 def load_classified():
-    return pd.read_csv(DATA / "vm_classified.csv")
+    return pd.read_csv(_check_file(DATA / "vm_classified.csv"))
 
 
 @st.cache_data
 def load_recommendations():
-    return pd.read_csv(DATA / "vm_recommendations.csv")
+    return pd.read_csv(_check_file(DATA / "vm_recommendations.csv"))
 
 
 @st.cache_data
 def load_fleet_costs():
-    return pd.read_csv(DATA / "fleet_cost_estimate.csv")
+    return pd.read_csv(_check_file(DATA / "fleet_cost_estimate.csv"))
 
 
 @st.cache_data
 def load_models():
     models = {}
     for q in [0.10, 0.50, 0.95]:
-        path = MODELS_DIR / f"quantile_{q:.2f}.json"
+        path = _check_file(MODELS_DIR / f"quantile_{q:.2f}.json")
         model = xgb.XGBRegressor()
         model.load_model(path)
         models[q] = model

@@ -16,9 +16,11 @@ from dashboard.shared import (
     kpi_card,
     load_models,
     load_recommendations,
+    safe_page,
 )
 
 
+@safe_page
 def page_model():
     st.markdown("# The Model")
     st.markdown("""

@@ -17,10 +17,12 @@ from dashboard.shared import (
     kpi_card,
     load_fleet_costs,
     load_recommendations,
+    safe_page,
 )
 from src.predict import load_fleet_avg_hourly
 
 
+@safe_page
 def page_recommendations():
     st.markdown("# Recommendations")
     st.markdown("""
