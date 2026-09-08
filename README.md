@@ -1,5 +1,9 @@
 # cloud-cost-predictor
 
+[![CI](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml/badge.svg)](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
 ## Problem
@@ -53,7 +57,9 @@ Underpredicting CPU usage is worse than overpredicting: terminating a VM that's 
 
 ## Dashboard
 
-Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, feature importance), recommendations explorer with filters, and a "Try It" page for uploading your own VM data.
+Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, SHAP waterfall), recommendations explorer with AWS pricing transparency, and a "Try It" page for uploading your own VM data.
+
+![Dashboard](reports/figures/dashboard_problem.png)
 
 ```bash
 streamlit run app.py
@@ -61,7 +67,34 @@ streamlit run app.py
 
 ## Explainability
 
-SHAP TreeExplainer on the median model provides per-VM feature attribution. The notebook includes beeswarm and waterfall plots showing why specific VMs get their recommendations.
+SHAP TreeExplainer on the median model provides per-VM feature attribution. The notebook includes beeswarm and waterfall plots showing why specific VMs get their recommendations. The dashboard surfaces these waterfall plots on the Model page.
+
+## Architecture
+
+```
+SAP Dataset (123K VMs, 31 days)
+        |
+        v
+  +-----------+      +----------+      +-------------+
+  | ingest.py | ---> |  eda.py  | ---> | pricing.py  |
+  | stream &  |      | classify |      | map to EC2  |
+  | summarize |      | VMs      |      | real prices |
+  +-----------+      +----------+      +-------------+
+        |                                     |
+        v                                     v
+  +------------------+              +------------------+
+  | XGBoost training |              | fleet_cost_      |
+  | q=0.10/0.50/0.95 |              | estimate.csv     |
+  | asymmetric loss  |              +------------------+
+  +------------------+
+        |
+        v
+  +------------------+      +---------------------+
+  | predict.py       | ---> | Streamlit dashboard |
+  | recommend +      |      | 4 interactive pages |
+  | risk scoring     |      | + Try It upload     |
+  +------------------+      +---------------------+
+```
 
 ## Project Structure
 
@@ -70,6 +103,7 @@ app.py                <- Streamlit dashboard
 data/
   raw/                <- source data (not tracked)
   clean/              <- processed datasets
+  pricing/            <- EC2 on-demand rates (from AWS Bulk API)
 notebooks/
   01_eda.ipynb
   02_cost_analysis.ipynb
@@ -129,22 +163,22 @@ docker run -p 8501:8501 cloud-cost-predictor
 The SAP dataset is from August 2024. This does not affect the analysis:
 
 - **CPU predictions don't expire.** The model predicts utilization (% CPU), not prices. A VM running at 2% in 2024 would still be idle today. Usage patterns are hardware-agnostic and time-independent.
-- **Cost estimates are illustrative.** The $5.9M figure uses a simplified EC2 pricing proxy to dimension the problem, not to produce a real invoice. Actual EC2 prices for established instance families (r5, m5, c5) have remained stable.
-- **The value is methodological.** The dataset comes from a peer-reviewed academic source (SAP, CC BY 4.0). The contribution is the pipeline -- asymmetric loss, quantile thresholds, per-VM risk scoring -- not the specific dollar amounts.
+- **Cost estimates use real EC2 prices.** The $5.9M figure is computed from current AWS on-demand rates for us-east-1 (t3, m5, r5 families), not a made-up proxy. Prices for these established instance families have remained stable. Run `scripts/fetch_ec2_pricing.py` to refresh them from the AWS Bulk Pricing API.
+- **The value is methodological.** The dataset comes from a peer-reviewed academic source (SAP, CC BY 4.0). The contribution is the pipeline (asymmetric loss, quantile thresholds, per-VM risk scoring), not the specific dollar amounts.
 
 ## Limitations
 
 - **No temporal trend in inference.** The `trend` feature (slope of daily CPU) is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
 - **CPU-only recommendations.** Memory utilization data exists in the pipeline but is not used in the decision logic. A VM with low CPU but high memory would be flagged for termination incorrectly.
 - **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining to capture seasonal patterns and fleet changes.
-- **Proxy pricing, not real billing.** The cost model maps vCPU/RAM categories to EC2 equivalents. Real cloud bills include storage, networking, reserved instances, and volume discounts that this analysis does not capture.
+- **Compute-only cost model.** Savings estimates use real EC2 on-demand prices (refreshable via `scripts/fetch_ec2_pricing.py`) but do not account for storage, networking, reserved instances, or volume discounts.
 
 ## Next Steps
 
-- **Memory-aware recommendations** -- incorporate `mem_mean` into the decision thresholds so high-memory VMs are not incorrectly flagged
-- **SHAP-based recommendation explanations** -- surface the top-3 features driving each VM's recommendation in the dashboard and CSV output
-- **Anomaly detection layer** -- flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
-- **AWS Pricing API integration** -- replace the static proxy with real-time EC2 pricing for more accurate savings estimates
+- **Memory-aware recommendations:** incorporate `mem_mean` into the decision thresholds so high-memory VMs are not incorrectly flagged
+- **SHAP-based recommendation explanations:** surface the top-3 features driving each VM's recommendation in the dashboard and CSV output
+- **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
+- **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost, since many "idle" VMs may already be covered by reservations
 
 ## License
 

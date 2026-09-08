@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: setup ingest train predict app docker lint test clean all
+.PHONY: setup ingest train predict app demo docker lint test clean all
 
 setup:
 	python3 -m venv $(VENV)
@@ -20,6 +20,8 @@ predict:
 
 app:
 	$(VENV)/bin/streamlit run app.py
+
+demo: setup predict app
 
 docker:
 	docker build -t cloud-cost-predictor .

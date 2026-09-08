@@ -1,5 +1,6 @@
 """Load trained XGBoost models and generate VM recommendations from new data."""
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -9,9 +10,9 @@ import xgboost as xgb
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "models"
 DATA_DIR = ROOT / "data" / "clean"
+PRICING_FILE = ROOT / "data" / "pricing" / "ec2_on_demand.json"
 
 FEATURE_NAMES = ["std", "min", "p50", "trend", "cv"]
-PRICE_PER_CPU_PCT_HOUR = 0.001
 HOURS_MONTH = 730
 
 
@@ -23,6 +24,29 @@ def load_models():
         model.load_model(path)
         models[q] = model
     return models
+
+
+def load_fleet_avg_hourly():
+    """Compute the fleet-weighted average hourly cost from EC2 pricing.
+
+    Used as a per-VM cost proxy when individual instance types are unknown.
+    This is more accurate than a fixed constant because it reflects the
+    actual instance mix in the fleet.
+    """
+    try:
+        with open(PRICING_FILE) as f:
+            pricing = json.load(f)
+        fleet_csv = DATA_DIR / "fleet_cost_estimate.csv"
+        if not fleet_csv.exists():
+            rates = [p["usd_per_hour"] for p in pricing["instances"].values()]
+            return sum(rates) / len(rates)
+        with open(fleet_csv) as f:
+            rows = list(csv.DictReader(f))
+        total_cost = sum(int(r["monthly_cost"]) for r in rows)
+        total_vms = sum(int(r["vm_count"]) for r in rows)
+        return (total_cost / total_vms) / HOURS_MONTH
+    except (FileNotFoundError, KeyError, ZeroDivisionError):
+        return 0.096  # m5.large fallback
 
 
 def build_features_from_summary(csv_path):
@@ -83,10 +107,20 @@ def assess_risk(action, pred_high):
     return "n/a"
 
 
+def estimate_savings(action, hourly_cost, pred_mid):
+    """Estimate monthly savings based on action and real EC2 pricing."""
+    if action == "terminate":
+        return hourly_cost * HOURS_MONTH
+    elif action == "downsize":
+        return hourly_cost * HOURS_MONTH * 0.5
+    return 0.0
+
+
 def predict(csv_path, output_path=None):
     """Run predictions on a VM utilization summary CSV."""
     models = load_models()
     instances, X = build_features_from_summary(csv_path)
+    avg_hourly = load_fleet_avg_hourly()
 
     preds = {q: models[q].predict(X) for q in [0.10, 0.50, 0.95]}
 
@@ -101,11 +135,12 @@ def predict(csv_path, output_path=None):
             low, mid, high = preds[0.10][i], preds[0.50][i], preds[0.95][i]
             action = recommend(high, mid)
             risk = assess_risk(action, high)
-            savings = max(0, (X[i, 2] - mid)) * PRICE_PER_CPU_PCT_HOUR * HOURS_MONTH
+            savings = estimate_savings(action, avg_hourly, mid)
             w.writerow([inst, f"{low:.2f}", f"{mid:.2f}", f"{high:.2f}",
                         action, risk, f"{savings:.2f}"])
 
     print(f"Wrote {len(instances)} recommendations to {output_path}")
+    print(f"Fleet avg hourly rate: ${avg_hourly:.4f} (from EC2 pricing)")
 
 
 if __name__ == "__main__":
