@@ -1,13 +1,19 @@
 """Stream SAP dataset from zip and produce per-VM summary statistics."""
-import zipfile, io, csv, json, sys
+import csv
+import io
+import logging
+import statistics
+import zipfile
 from collections import defaultdict
 from pathlib import Path
-import statistics
+
+logger = logging.getLogger(__name__)
 
 ZIP = Path(__file__).resolve().parent.parent / "data" / "raw" / "sap.zip"
 PREFIX = "sap-cloud-infrastructure-dataset/data/"
 
-def stream_metric(zf, filename):
+
+def stream_metric(zf: zipfile.ZipFile, filename: str):
     """Yield (instance, value) from a vrops CSV inside the zip."""
     with zf.open(PREFIX + filename) as f:
         reader = csv.reader(io.TextIOWrapper(f, "utf-8"))
@@ -20,17 +26,18 @@ def stream_metric(zf, filename):
             except (ValueError, IndexError):
                 continue
 
-def summarize_metric(zf, filename):
+
+def summarize_metric(zf: zipfile.ZipFile, filename: str) -> dict:
     """Return {instance: {mean, median, p5, p95, min, max, n}}."""
-    buckets = defaultdict(list)
+    buckets: dict[str, list[float]] = defaultdict(list)
     count = 0
     for inst, val in stream_metric(zf, filename):
         buckets[inst].append(val)
         count += 1
         if count % 5_000_000 == 0:
-            print(f"  {count:,} rows...", file=sys.stderr)
+            logger.info("  %s rows...", f"{count:,}")
 
-    print(f"  {count:,} total rows, {len(buckets):,} instances", file=sys.stderr)
+    logger.info("  %s total rows, %s instances", f"{count:,}", f"{len(buckets):,}")
     result = {}
     for inst, vals in buckets.items():
         vals.sort()
@@ -47,9 +54,10 @@ def summarize_metric(zf, filename):
         }
     return result
 
-def load_vm_sizes(zf):
+
+def load_vm_sizes(zf: zipfile.ZipFile) -> dict[tuple[str, str], int]:
     """Return {(ram_cat, vcpu_cat): total_count} from vm_classification."""
-    sizes = defaultdict(int)
+    sizes: dict[tuple[str, str], int] = defaultdict(int)
     with zf.open(PREFIX + "vm_classification_30d.csv") as f:
         reader = csv.DictReader(io.TextIOWrapper(f, "utf-8"))
         for row in reader:
@@ -57,7 +65,8 @@ def load_vm_sizes(zf):
             sizes[key] += int(row["Count"])
     return sizes
 
-def build(out_dir=None):
+
+def build(out_dir: Path | None = None) -> tuple[Path, Path]:
     if out_dir is None:
         out_dir = Path(__file__).resolve().parent.parent / "data" / "clean"
     out_dir = Path(out_dir)
@@ -65,14 +74,14 @@ def build(out_dir=None):
 
     zf = zipfile.ZipFile(ZIP)
 
-    print("Processing CPU usage...", file=sys.stderr)
+    logger.info("Processing CPU usage...")
     cpu = summarize_metric(zf, "vrops_virtualmachine_cpu_usage_ratio_all.csv")
 
-    print("Processing memory usage...", file=sys.stderr)
+    logger.info("Processing memory usage...")
     mem = summarize_metric(zf, "vrops_virtualmachine_memory_usage_ratio_all.csv")
 
     all_instances = sorted(set(cpu) | set(mem))
-    print(f"Total unique VMs: {len(all_instances):,}", file=sys.stderr)
+    logger.info("Total unique VMs: %s", f"{len(all_instances):,}")
 
     out_path = out_dir / "vm_utilization_summary.csv"
     with open(out_path, "w", newline="\n") as f:
@@ -93,9 +102,9 @@ def build(out_dir=None):
                 m.get("n", 0),
             ])
 
-    print(f"Wrote {out_path} ({len(all_instances)} rows)", file=sys.stderr)
+    logger.info("Wrote %s (%d rows)", out_path, len(all_instances))
 
-    print("Processing VM sizes...", file=sys.stderr)
+    logger.info("Processing VM sizes...")
     sizes = load_vm_sizes(zf)
     sizes_path = out_dir / "vm_size_distribution.csv"
     with open(sizes_path, "w", newline="\n") as f:
@@ -103,10 +112,12 @@ def build(out_dir=None):
         w.writerow(["ram_category", "vcpu_category", "total_count"])
         for (ram, vcpu), count in sorted(sizes.items(), key=lambda x: -x[1]):
             w.writerow([ram, vcpu, count])
-    print(f"Wrote {sizes_path}", file=sys.stderr)
+    logger.info("Wrote %s", sizes_path)
 
     zf.close()
     return out_path, sizes_path
 
+
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     build()

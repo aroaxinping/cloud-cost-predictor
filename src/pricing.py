@@ -1,33 +1,21 @@
 """Map VM sizes to real AWS EC2 pricing and estimate waste in USD.
 
 Prices are loaded from data/pricing/ec2_on_demand.json, which contains
-verified on-demand rates from the AWS Bulk Pricing API. Run
-scripts/fetch_ec2_pricing.py to refresh them.
+verified on-demand rates from the AWS Bulk Pricing API.
 """
 import csv
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "clean"
 PRICING_FILE = Path(__file__).resolve().parent.parent / "data" / "pricing" / "ec2_on_demand.json"
 
 HOURS_PER_MONTH = 730
 
-
-def load_ec2_prices():
-    """Load EC2 on-demand prices from the pricing JSON."""
-    with open(PRICING_FILE) as f:
-        data = json.load(f)
-    print(f"EC2 pricing: {data['metadata']['region']}, verified {data['metadata']['verified']}")
-    return data["instances"]
-
-
-def get_price(prices, instance_type):
-    return prices[instance_type]["usd_per_hour"]
-
-
-# SAP size categories -> EC2 instance type mapping
-SIZE_TO_EC2 = {
+SIZE_TO_EC2: dict[tuple[str, str], str] = {
     ("Small", "Small"):              "t3.small",
     ("Medium", "Small"):             "t3.medium",
     ("Medium", "Medium"):            "m5.large",
@@ -39,8 +27,7 @@ SIZE_TO_EC2 = {
     ("Extra Large", "Extra Large"):  "r5.8xlarge",
 }
 
-# Right-sizing: if oversized, the next size down
-DOWNSIZE_TO = {
+DOWNSIZE_TO: dict[str, str] = {
     "r5.8xlarge":  "r5.4xlarge",
     "r5.4xlarge":  "r5.2xlarge",
     "r5.2xlarge":  "r5.xlarge",
@@ -53,20 +40,30 @@ DOWNSIZE_TO = {
 }
 
 
-def estimate_fleet_cost():
+def load_ec2_prices() -> dict:
+    """Load EC2 on-demand prices from the pricing JSON."""
+    with open(PRICING_FILE) as f:
+        data = json.load(f)
+    logger.info("EC2 pricing: %s, verified %s", data["metadata"]["region"], data["metadata"]["verified"])
+    return data["instances"]
+
+
+def get_price(prices: dict, instance_type: str) -> float:
+    return prices[instance_type]["usd_per_hour"]
+
+
+def estimate_fleet_cost() -> None:
     """Load size distribution and compute monthly cost and savings potential."""
     prices = load_ec2_prices()
 
     with open(DATA / "vm_size_distribution.csv") as f:
         sizes = list(csv.DictReader(f))
 
-    # The count column represents VM-snapshots (30 days x ~daily),
-    # so we need to normalize. From ingest we know there are ~123K unique VMs.
     total_snapshots = sum(int(s["total_count"]) for s in sizes)
 
-    results = []
-    total_monthly = 0
-    total_savings = 0
+    results: list[dict] = []
+    total_monthly = 0.0
+    total_savings = 0.0
 
     for s in sizes:
         ram = s["ram_category"]
@@ -84,13 +81,12 @@ def estimate_fleet_cost():
         monthly_per_vm = hourly * HOURS_PER_MONTH
         monthly_total = monthly_per_vm * vm_count
 
-        # Savings: zombies (10.9%) can be terminated, idle+oversized (84.2%) can be downsized
         zombie_count = int(vm_count * 0.109)
         downsize_count = int(vm_count * 0.842)
 
         zombie_savings = zombie_count * monthly_per_vm
 
-        downsize_savings = 0
+        downsize_savings = 0.0
         if ec2_type in DOWNSIZE_TO:
             smaller_type = DOWNSIZE_TO[ec2_type]
             smaller_hourly = get_price(prices, smaller_type)
@@ -111,23 +107,24 @@ def estimate_fleet_cost():
             "downsize_savings": round(downsize_savings),
         })
 
-    print(f"\nEstimated monthly fleet cost: ${total_monthly:,.0f}")
-    print(f"Potential monthly savings:    ${total_savings:,.0f} ({total_savings/total_monthly*100:.0f}%)")
-    print(f"Per-VM average waste:         ${total_savings/123_363:.0f}/month")
-    print()
+    logger.info("Estimated monthly fleet cost: $%s", f"{total_monthly:,.0f}")
+    logger.info("Potential monthly savings:    $%s (%d%%)", f"{total_savings:,.0f}", total_savings / total_monthly * 100)
+    logger.info("Per-VM average waste:         $%d/month", total_savings / 123_363)
 
     for r in sorted(results, key=lambda x: -x["monthly_cost"]):
-        print(f"  {r['ec2_type']:>14} x {r['vm_count']:>6,}: "
-              f"${r['monthly_cost']:>10,}/mo | "
-              f"save ${r['zombie_savings'] + r['downsize_savings']:>8,}")
+        logger.info("  %14s x %6s: $%10s/mo | save $%8s",
+                     r["ec2_type"], f"{r['vm_count']:,}",
+                     f"{r['monthly_cost']:,}",
+                     f"{r['zombie_savings'] + r['downsize_savings']:,}")
 
     out_path = DATA / "fleet_cost_estimate.csv"
     with open(out_path, "w", newline="\n") as f:
         w = csv.DictWriter(f, fieldnames=results[0].keys())
         w.writeheader()
         w.writerows(results)
-    print(f"\nWrote {out_path}")
+    logger.info("Wrote %s", out_path)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     estimate_fleet_cost()
