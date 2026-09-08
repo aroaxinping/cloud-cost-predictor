@@ -156,6 +156,12 @@ def predict(csv_path, output_path=None):
 
 
 if __name__ == "__main__":
-    input_csv = sys.argv[1] if len(sys.argv) > 1 else DATA_DIR / "vm_utilization_summary.csv"
-    output_csv = sys.argv[2] if len(sys.argv) > 2 else None
-    predict(input_csv, output_csv)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate VM recommendations from utilization data")
+    parser.add_argument("--input", default=str(DATA_DIR / "vm_utilization_summary.csv"),
+                        help="path to vm_utilization_summary.csv")
+    parser.add_argument("--output", default=None,
+                        help="output CSV path (default: data/clean/vm_recommendations.csv)")
+    args = parser.parse_args()
+    predict(args.input, args.output)

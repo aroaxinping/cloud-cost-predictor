@@ -128,3 +128,4 @@ def estimate_fleet_cost() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     estimate_fleet_cost()
+

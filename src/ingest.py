@@ -119,5 +119,10 @@ def build(out_dir: Path | None = None) -> tuple[Path, Path]:
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    build()
+    parser = argparse.ArgumentParser(description="Ingest SAP dataset and produce VM summaries")
+    parser.add_argument("--output-dir", default=None, help="output directory for clean CSVs")
+    args = parser.parse_args()
+    build(Path(args.output_dir) if args.output_dir else None)
