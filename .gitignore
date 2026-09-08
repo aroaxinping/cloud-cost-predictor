@@ -11,3 +11,6 @@ data/raw/
 models/*.pkl
 .env
 .claude/
+reports/coverage/
+.coverage
+htmlcov/

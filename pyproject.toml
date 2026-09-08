@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "ruff",
     "pytest",
+    "pytest-cov",
     "pyright",
 ]
 notebooks = [
@@ -48,3 +49,4 @@ exclude = ["notebooks", ".venv"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "--cov=src --cov-report=term-missing --cov-report=html:reports/coverage"
