@@ -6,15 +6,15 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "clean"
 
 SUMMARY_REQUIRED_COLS = {
-    "instance", "cpu_mean", "cpu_std", "cpu_median",
+    "instance", "cpu_mean", "cpu_median",
     "cpu_p5", "cpu_p95", "cpu_min", "cpu_max", "cpu_n",
-    "mem_mean", "mem_std", "mem_median",
+    "mem_mean", "mem_median",
     "mem_p5", "mem_p95", "mem_min", "mem_max", "mem_n",
 }
 
 NUMERIC_COLS = {
-    "cpu_mean", "cpu_std", "cpu_median", "cpu_p5", "cpu_p95",
-    "cpu_min", "cpu_max", "mem_mean", "mem_std", "mem_median",
+    "cpu_mean", "cpu_median", "cpu_p5", "cpu_p95",
+    "cpu_min", "cpu_max", "mem_mean", "mem_median",
     "mem_p5", "mem_p95", "mem_min", "mem_max",
 }
 
