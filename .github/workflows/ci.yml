@@ -27,3 +27,28 @@ jobs:
 
       - name: Run tests
         run: uv run pytest tests/ -v
+
+  notebooks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --extra notebooks
+
+      - name: Verify notebooks execute without errors
+        run: |
+          for nb in notebooks/*.ipynb; do
+            echo "=== Checking $nb ==="
+            uv run jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=300 "$nb" --output /dev/null
+          done
