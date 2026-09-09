@@ -2,7 +2,7 @@
 import csv
 import tempfile
 
-from src.predict import assess_risk, build_features_from_summary, recommend
+from src.predict import assess_risk, build_features_from_summary, estimate_savings, recommend
 
 THRESHOLDS = {"terminate_cpu": 5, "downsize_cpu": 20, "review_cpu": 50}
 MARGINS = {
@@ -56,6 +56,18 @@ def test_build_features_with_std():
     assert X[0, 0] == 3.0  # std
     assert X[0, 1] == 2.0  # min
     assert X[0, 2] == 9.0  # p50
+
+
+def test_estimate_savings_terminate():
+    assert estimate_savings("terminate", 0.10) == 0.10 * 730
+
+
+def test_estimate_savings_downsize():
+    assert estimate_savings("downsize", 0.10) == 0.10 * 730 * 0.5
+
+
+def test_estimate_savings_keep():
+    assert estimate_savings("keep", 0.10) == 0.0
 
 
 def test_build_features_without_std():
