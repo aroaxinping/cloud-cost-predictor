@@ -3,8 +3,8 @@
 [![CI](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml/badge.svg)](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-46_passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-65%25_(src)-yellow)
+![Tests](https://img.shields.io/badge/tests-70_passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-68%25_(src)-yellow)
 
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
@@ -86,6 +86,28 @@ Notebook 05 groups VMs by usage behavior using K-Means on the 5 model features. 
 
 This is useful for fleet operations: instead of acting on 123K individual recommendations, teams can reason about a handful of behavioral groups.
 
+## Reserved Instances
+
+The 177 VMs tagged `keep` (see the actions table above) are the only ones not already slated for termination/downsizing/review — the only workloads stable enough to commit capacity to. `src/reserved_instances.py` prices them against real 1yr/3yr EC2 Reserved Instance rates (standard offering class) pulled from the AWS Bulk Pricing API, the same public endpoint `fetch_ec2_pricing.py` already uses for on-demand prices.
+
+| Term | Payment option | $/VM/month | Savings vs on-demand | Breakeven utilization |
+|---|---|---|---|---|
+| 3yr | All Upfront | $33.47 | 62.4% | 37.6% |
+| 3yr | Partial Upfront | $35.56 | 60.0% | 40.0% |
+| 3yr | No Upfront | $38.35 | 56.9% | 43.1% |
+| 1yr | All Upfront | $52.26 | 41.3% | 58.7% |
+| 1yr | Partial Upfront | $53.39 | 40.0% | 60.0% |
+| 1yr | No Upfront | $55.92 | 37.2% | 62.8% |
+
+Against a fleet-weighted on-demand baseline of **$89.01/VM/month**, the cheapest commitment (3yr, All Upfront) cuts that to **$33.47/VM/month** — **$9,831/month** (~$117,967/year) across the 177 `keep` VMs if all of them were reserved. Breakeven utilization is the minimum fraction of on-demand hours a VM must actually run for the reservation to beat staying on-demand — 37.6% for the cheapest option, meaning it pays off well before "always on."
+
+Run it with `make ri` (writes `data/clean/ri_recommendations.csv`); refresh the underlying rates with `python scripts/fetch_ri_pricing.py`.
+
+**Two things to read before trusting these numbers:**
+
+- **No per-VM instance type.** The SAP dataset only has aggregate `(ram_category, vcpu_category)` counts (`data/clean/vm_size_distribution.csv`), not a real instance type per VM — the same gap `pricing.py`'s fleet cost estimate already works around. So every `keep` VM is priced with the same fleet-weighted average across the project's t3/m5/r5 mix; only `instance` and `actual_cpu` in `ri_recommendations.csv` are VM-specific. This is stated in the module docstring rather than pretending to know each VM's real size.
+- **Savings Plans are not computed.** AWS does not publish Savings Plans rates on the public Bulk Pricing API this project uses for on-demand and RI prices — that needs the authenticated `savingsplans:DescribeRates` API (AWS account + credentials this pipeline doesn't have). Rather than guess a discount, `ri_recommendations.csv`'s `savings_plan` column says so explicitly. Whoever runs this with AWS credentials can extend `src/reserved_instances.py` to call that API and fill it in for real.
+
 ## REST API
 
 FastAPI endpoint (`src/api.py`) wraps the trained models for integration with infrastructure tooling.
@@ -104,7 +126,7 @@ Returns quantile predictions (low/mid/high), action, risk level, and estimated m
 
 ## Dashboard
 
-Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, SHAP waterfall), recommendations explorer with AWS pricing transparency, and a "Try It" page for uploading your own VM data.
+Interactive Streamlit app with five pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, SHAP waterfall), recommendations explorer with AWS pricing transparency, a Reserved Instances page comparing on-demand vs RI costs for "keep" VMs, and a "Try It" page for uploading your own VM data.
 
 ```bash
 make app
@@ -133,6 +155,8 @@ flowchart LR
         B --> G[XGBoost training\nq=0.10 · 0.50 · 0.95\nasymmetric loss 3×]
         G --> H[predict.py\nrecommend + risk score]
         H --> MC[montecarlo.py\n10K savings simulations]
+        H --> RI[reserved_instances.py\nRI vs on-demand for 'keep' VMs]
+        RI --> K[ri_recommendations.csv]
     end
 
     subgraph Serve
@@ -140,6 +164,7 @@ flowchart LR
         H --> J[FastAPI\nREST endpoint]
         E --> I
         F --> I
+        K --> I
     end
 ```
 
@@ -153,11 +178,12 @@ dashboard/
   page_problem.py     <- fleet waste overview
   page_model.py       <- model explainer (quantiles, SHAP, loss)
   page_recommendations.py <- actions, savings, sensitivity
+  page_reserved_instances.py <- on-demand vs RI costs for "keep" VMs
   page_try_it.py      <- upload your own data
 data/
   raw/                <- source data (not tracked)
   clean/              <- processed datasets
-  pricing/            <- EC2 on-demand rates (from AWS Bulk API)
+  pricing/            <- EC2 on-demand + Reserved Instance rates (from AWS Bulk API)
 notebooks/
   01_eda.ipynb        <- exploratory data analysis
   02_cost_analysis.ipynb <- fleet cost estimation
@@ -169,14 +195,16 @@ src/
   eda.py              <- classify VMs (config-driven, memory-aware)
   pricing.py          <- map to EC2 pricing, estimate waste
   predict.py          <- load models, generate recommendations
+  reserved_instances.py <- price "keep" VMs against RI commitments
   validate.py         <- data integrity checks
   montecarlo.py       <- Monte Carlo savings simulation
   api.py              <- FastAPI prediction endpoint
 scripts/
   export_figures.py   <- generate publication-ready figures
-  fetch_ec2_pricing.py <- refresh EC2 rates from AWS Bulk API
+  fetch_ec2_pricing.py <- refresh EC2 on-demand rates from AWS Bulk API
+  fetch_ri_pricing.py <- refresh EC2 Reserved Instance rates from AWS Bulk API
 models/               <- trained XGBoost models (.json) + model card
-tests/                <- 46 tests (predict, eda, pricing, validation, API, Monte Carlo)
+tests/                <- 70 tests (predict, eda, pricing, RI, validation, API, Monte Carlo)
 reports/
   figures/            <- generated plots
   coverage/           <- HTML coverage report
@@ -209,6 +237,7 @@ make eda        # Classify VMs
 make pricing    # Estimate fleet costs from EC2 rates
 make train      # Train models via notebook execution
 make predict    # Validate data + generate recommendations
+make ri         # Compare on-demand vs Reserved Instance costs for "keep" VMs
 make app        # Launch the Streamlit dashboard
 make api        # Launch the FastAPI prediction server
 
@@ -235,13 +264,14 @@ The SAP dataset is from August 2024. This does not affect the analysis:
 - **No temporal trend in inference.** The `trend` feature is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
 - **Memory thresholds are heuristic.** The classification checks memory to prevent terminating memory-bound VMs (>80% mem = right-sized), but the prediction model does not use memory features.
 - **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining. The drift detection notebook (04) provides the monitoring framework for this.
-- **Compute-only cost model.** Savings estimates use real EC2 on-demand prices but do not account for storage, networking, reserved instances, or volume discounts.
+- **Compute-only cost model.** Savings estimates use real EC2 on-demand and Reserved Instance prices but do not account for storage, networking, or volume discounts.
+- **Reserved Instance pricing is fleet-averaged, not per-VM.** There's no per-VM instance type in the SAP dataset, so `ri_recommendations.csv` prices every `keep` VM with the same fleet-weighted average instead of a real per-VM type (see "Reserved Instances" above). Savings Plans rates aren't computed at all — the public pricing API doesn't publish them.
 
 ## Next Steps
 
 - **Memory quantile predictions:** train a parallel memory model so recommendations consider both CPU and memory utilization forecasts
 - **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
-- **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost
+- **Real Savings Plans rates:** `src/reserved_instances.py` already models Reserved Instances against real AWS prices; wiring up the authenticated `savingsplans:DescribeRates` API would let it compare RI against Savings Plans instead of leaving that column blank
 - **Conformal prediction:** replace quantile regression intervals with distribution-free conformal prediction sets for guaranteed coverage
 
 ## License
