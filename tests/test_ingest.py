@@ -1,6 +1,5 @@
 """Tests for the ingest module."""
 import csv
-import io
 import zipfile
 from pathlib import Path
 
