@@ -3,8 +3,8 @@
 [![CI](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml/badge.svg)](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-32_passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-35%25_(src)-yellow)
+![Tests](https://img.shields.io/badge/tests-46_passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-65%25_(src)-yellow)
 
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
@@ -41,13 +41,14 @@ XGBoost quantile regression trained on 25 days of CPU time series to predict nex
 | Train-test gap | 0.04% (no overfitting) |
 | Overfitting control | Early stopping, L2 reg, subsample 0.8 |
 | Validation | 80/20 VM-level split (9,411 unseen VMs) |
+| Cross-validation | 5-fold TimeSeriesSplit, stable MAE across folds |
 
 ### Cost-aware design
 
 Underpredicting CPU usage is worse than overpredicting: terminating a VM that's actually needed causes downtime, while keeping an idle VM just wastes money. The model addresses this at three levels:
 
 1. **Asymmetric loss**: the median model penalizes underpredictions 3x more than overpredictions
-2. **95% confidence threshold**: recommendations use q=0.95 (not q=0.90), so only 5% chance of underestimating
+2. **95% confidence threshold**: recommendations use q=0.95, so only 5% chance of underestimating
 3. **Risk levels**: each recommendation is tagged safe/moderate/risky based on margin to threshold
 
 | Action | VMs | Savings potential |
@@ -55,16 +56,58 @@ Underpredicting CPU usage is worse than overpredicting: terminating a VM that's 
 | Terminate | 16,324 | $1,221/month |
 | Downsize | 27,799 | $17,040/month |
 | Review | 2,753 | $4,687/month |
-| Keep | 177 | - |
+| Keep | 177 | n/a |
+
+### Monte Carlo savings simulation
+
+Point estimates hide uncertainty. The Monte Carlo module (`src/montecarlo.py`) runs 10K simulations, sampling future CPU from triangular distributions bounded by quantile predictions. This produces a savings distribution with confidence intervals instead of a single number, making the business case more honest.
+
+### Feature importance
+
+Two complementary approaches validate which features matter:
+
+- **Gain-based importance** (XGBoost internal): how much each feature reduces training loss across splits
+- **Permutation importance** (model-agnostic): shuffle one feature on the test set, measure MAE degradation
+
+Both confirm p50 (median CPU) as the dominant predictor, with std and cv contributing meaningful signal for volatile VMs.
+
+## Drift detection
+
+Notebook 04 monitors whether feature distributions have shifted since training using:
+
+- **PSI (Population Stability Index)**: bins features and compares proportions between reference and production data. PSI < 0.1 is safe, 0.1-0.25 warrants investigation, > 0.25 triggers retraining.
+- **KS test (Kolmogorov-Smirnov)**: non-parametric two-sample test per feature. Low p-value = significant distributional shift.
+
+In production, run this on every new data batch before trusting model predictions.
+
+## VM clustering
+
+Notebook 05 groups VMs by usage behavior using K-Means on the 5 model features. Elbow + silhouette analysis selects optimal k. Clusters are auto-labeled as archetypes (zombie, idle, bursty, workhorse, moderate) and cross-referenced with the rule-based classification from `eda.py` to spot divergences.
+
+This is useful for fleet operations: instead of acting on 123K individual recommendations, teams can reason about a handful of behavioral groups.
+
+## REST API
+
+FastAPI endpoint (`src/api.py`) wraps the trained models for integration with infrastructure tooling.
+
+```bash
+# Start the server
+make api
+
+# Score a batch of VMs
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"vms": [{"instance": "vm-1", "cpu_std": 2.0, "cpu_min": 1.0, "cpu_median": 3.0, "cv": 0.5}]}'
+```
+
+Returns quantile predictions (low/mid/high), action, risk level, and estimated monthly savings per VM.
 
 ## Dashboard
 
 Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, SHAP waterfall), recommendations explorer with AWS pricing transparency, and a "Try It" page for uploading your own VM data.
 
-![Dashboard](reports/figures/dashboard_problem.png)
-
 ```bash
-streamlit run app.py
+make app
 ```
 
 ## Explainability
@@ -89,10 +132,12 @@ flowchart LR
     subgraph Model
         B --> G[XGBoost training\nq=0.10 · 0.50 · 0.95\nasymmetric loss 3×]
         G --> H[predict.py\nrecommend + risk score]
+        H --> MC[montecarlo.py\n10K savings simulations]
     end
 
-    subgraph Dashboard
+    subgraph Serve
         H --> I[Streamlit app\n4 pages + Try It]
+        H --> J[FastAPI\nREST endpoint]
         E --> I
         F --> I
     end
@@ -102,6 +147,7 @@ flowchart LR
 
 ```
 app.py                <- Streamlit entry point (thin router)
+config.yaml           <- single source of truth for thresholds and model params
 dashboard/
   shared.py           <- colors, layouts, data loaders, CSS
   page_problem.py     <- fleet waste overview
@@ -113,27 +159,30 @@ data/
   clean/              <- processed datasets
   pricing/            <- EC2 on-demand rates (from AWS Bulk API)
 notebooks/
-  01_eda.ipynb
-  02_cost_analysis.ipynb
-  03_predictive_model.ipynb
+  01_eda.ipynb        <- exploratory data analysis
+  02_cost_analysis.ipynb <- fleet cost estimation
+  03_predictive_model.ipynb <- model training, SHAP, CV, Monte Carlo
+  04_drift_detection.ipynb  <- PSI + KS tests for feature drift
+  05_vm_clustering.ipynb    <- K-Means usage archetypes
 src/
   ingest.py           <- stream SAP zip to per-VM summaries
-  eda.py              <- classify VMs (memory-aware classification)
+  eda.py              <- classify VMs (config-driven, memory-aware)
   pricing.py          <- map to EC2 pricing, estimate waste
   predict.py          <- load models, generate recommendations
   validate.py         <- data integrity checks
+  montecarlo.py       <- Monte Carlo savings simulation
+  api.py              <- FastAPI prediction endpoint
 scripts/
   export_figures.py   <- generate publication-ready figures
   fetch_ec2_pricing.py <- refresh EC2 rates from AWS Bulk API
 models/               <- trained XGBoost models (.json) + model card
-tests/                <- 32 tests (predict, eda, pricing, validation, integration)
+tests/                <- 46 tests (predict, eda, pricing, validation, API, Monte Carlo)
 reports/
   figures/            <- generated plots
   coverage/           <- HTML coverage report
-config.yaml           <- model hyperparameters and thresholds
 pyproject.toml        <- dependencies and tool config (uv)
 Dockerfile            <- containerized deployment with health check
-Makefile              <- setup/train/predict/app targets (make help)
+Makefile              <- setup/train/predict/app/api targets (make help)
 ```
 
 ## Setup
@@ -156,9 +205,12 @@ make all
 
 # Or step by step:
 make ingest     # Stream SAP dataset (requires sap.zip in data/raw/)
+make eda        # Classify VMs
+make pricing    # Estimate fleet costs from EC2 rates
 make train      # Train models via notebook execution
 make predict    # Validate data + generate recommendations
 make app        # Launch the Streamlit dashboard
+make api        # Launch the FastAPI prediction server
 
 # Pass a custom CSV
 uv run python src/predict.py --input path/to/summary.csv --output output.csv
@@ -175,22 +227,22 @@ make help
 The SAP dataset is from August 2024. This does not affect the analysis:
 
 - **CPU predictions don't expire.** The model predicts utilization (% CPU), not prices. A VM running at 2% in 2024 would still be idle today. Usage patterns are hardware-agnostic and time-independent.
-- **Cost estimates use real EC2 prices.** The $5.9M figure is computed from current AWS on-demand rates for us-east-1 (t3, m5, r5 families), not a made-up proxy. Prices for these established instance families have remained stable. Run `scripts/fetch_ec2_pricing.py` to refresh them from the AWS Bulk Pricing API.
+- **Cost estimates use real EC2 prices.** The $5.9M figure is computed from current AWS on-demand rates for us-east-1 (t3, m5, r5 families). Run `scripts/fetch_ec2_pricing.py` to refresh them from the AWS Bulk Pricing API.
 - **The value is methodological.** The dataset comes from a peer-reviewed academic source (SAP, CC BY 4.0). The contribution is the pipeline (asymmetric loss, quantile thresholds, per-VM risk scoring), not the specific dollar amounts.
 
 ## Limitations
 
-- **No temporal trend in inference.** The `trend` feature (slope of daily CPU) is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
-- **Memory thresholds are heuristic.** The classification checks memory to prevent terminating memory-bound VMs (>80% mem = right-sized), but the predict model itself does not use memory features. A future version could add memory quantile predictions.
-- **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining to capture seasonal patterns and fleet changes.
-- **Compute-only cost model.** Savings estimates use real EC2 on-demand prices (refreshable via `scripts/fetch_ec2_pricing.py`) but do not account for storage, networking, reserved instances, or volume discounts.
+- **No temporal trend in inference.** The `trend` feature is available during training but not in `predict.py`, which lacks the raw time series. It defaults to zero, slightly reducing prediction quality for VMs with strong upward/downward trends.
+- **Memory thresholds are heuristic.** The classification checks memory to prevent terminating memory-bound VMs (>80% mem = right-sized), but the prediction model does not use memory features.
+- **Static dataset, no retraining loop.** The model is trained once on 31 days of data. A production system would need periodic retraining. The drift detection notebook (04) provides the monitoring framework for this.
+- **Compute-only cost model.** Savings estimates use real EC2 on-demand prices but do not account for storage, networking, reserved instances, or volume discounts.
 
 ## Next Steps
 
 - **Memory quantile predictions:** train a parallel memory model so recommendations consider both CPU and memory utilization forecasts
-- **SHAP-based recommendation explanations:** surface the top-3 features driving each VM's recommendation in the dashboard and CSV output
 - **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
-- **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost, since many "idle" VMs may already be covered by reservations
+- **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost
+- **Conformal prediction:** replace quantile regression intervals with distribution-free conformal prediction sets for guaranteed coverage
 
 ## License
 
