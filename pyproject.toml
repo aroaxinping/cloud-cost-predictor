@@ -12,6 +12,8 @@ dependencies = [
     "streamlit>=1.28",
     "plotly>=5.15",
     "pyyaml>=6.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +22,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pyright",
+    "httpx2",
 ]
 notebooks = [
     "jupyter",
