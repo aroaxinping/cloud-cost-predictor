@@ -63,7 +63,7 @@ def validate_summary(path: Path | None = None) -> list[str]:
                 if val < 0:
                     errors.append(f"Row {i} ({inst}): negative {col}={val}")
 
-                if col.startswith("cpu_") and col not in ("cpu_std", "cpu_n") and val > 100:
+                if col not in ("cpu_std", "cpu_n", "mem_std", "mem_n") and val > 100:
                     errors.append(f"Row {i} ({inst}): {col}={val} exceeds 100%")
 
     if row_count == 0:

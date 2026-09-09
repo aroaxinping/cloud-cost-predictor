@@ -72,49 +72,56 @@ def build(out_dir: Path | None = None) -> tuple[Path, Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    zf = zipfile.ZipFile(ZIP)
+    if not ZIP.exists():
+        logger.error("Data file not found: %s", ZIP)
+        logger.error("Download sap.zip from https://zenodo.org/records/13772668 and place it in data/raw/")
+        raise FileNotFoundError(f"{ZIP} not found. See README for download instructions.")
 
-    logger.info("Processing CPU usage...")
-    cpu = summarize_metric(zf, "vrops_virtualmachine_cpu_usage_ratio_all.csv")
+    with zipfile.ZipFile(ZIP) as zf:
+        logger.info("Processing CPU usage...")
+        cpu = summarize_metric(zf, "vrops_virtualmachine_cpu_usage_ratio_all.csv")
 
-    logger.info("Processing memory usage...")
-    mem = summarize_metric(zf, "vrops_virtualmachine_memory_usage_ratio_all.csv")
+        logger.info("Processing memory usage...")
+        mem = summarize_metric(zf, "vrops_virtualmachine_memory_usage_ratio_all.csv")
 
-    all_instances = sorted(set(cpu) | set(mem))
-    logger.info("Total unique VMs: %s", f"{len(all_instances):,}")
+        all_instances = sorted(set(cpu) | set(mem))
+        logger.info("Total unique VMs: %s", f"{len(all_instances):,}")
 
-    out_path = out_dir / "vm_utilization_summary.csv"
-    with open(out_path, "w", newline="\n") as f:
-        w = csv.writer(f)
-        w.writerow([
-            "instance",
-            "cpu_mean", "cpu_std", "cpu_median", "cpu_p5", "cpu_p95", "cpu_min", "cpu_max", "cpu_n",
-            "mem_mean", "mem_std", "mem_median", "mem_p5", "mem_p95", "mem_min", "mem_max", "mem_n",
-        ])
-        for inst in all_instances:
-            c = cpu.get(inst, {})
-            m = mem.get(inst, {})
+        out_path = out_dir / "vm_utilization_summary.csv"
+        with open(out_path, "w", newline="\n") as f:
+            w = csv.writer(f)
             w.writerow([
-                inst,
-                *[round(c.get(k, 0), 4) for k in ("mean", "std", "median", "p5", "p95", "min", "max")],
-                c.get("n", 0),
-                *[round(m.get(k, 0), 4) for k in ("mean", "std", "median", "p5", "p95", "min", "max")],
-                m.get("n", 0),
+                "instance",
+                "cpu_mean", "cpu_std", "cpu_median", "cpu_p5", "cpu_p95",
+                "cpu_min", "cpu_max", "cpu_n",
+                "mem_mean", "mem_std", "mem_median", "mem_p5", "mem_p95",
+                "mem_min", "mem_max", "mem_n",
             ])
+            for inst in all_instances:
+                c = cpu.get(inst, {})
+                m = mem.get(inst, {})
+                w.writerow([
+                    inst,
+                    *[round(c.get(k, 0), 4) for k in
+                      ("mean", "std", "median", "p5", "p95", "min", "max")],
+                    c.get("n", 0),
+                    *[round(m.get(k, 0), 4) for k in
+                      ("mean", "std", "median", "p5", "p95", "min", "max")],
+                    m.get("n", 0),
+                ])
 
-    logger.info("Wrote %s (%d rows)", out_path, len(all_instances))
+        logger.info("Wrote %s (%d rows)", out_path, len(all_instances))
 
-    logger.info("Processing VM sizes...")
-    sizes = load_vm_sizes(zf)
-    sizes_path = out_dir / "vm_size_distribution.csv"
-    with open(sizes_path, "w", newline="\n") as f:
-        w = csv.writer(f)
-        w.writerow(["ram_category", "vcpu_category", "total_count"])
-        for (ram, vcpu), count in sorted(sizes.items(), key=lambda x: -x[1]):
-            w.writerow([ram, vcpu, count])
-    logger.info("Wrote %s", sizes_path)
+        logger.info("Processing VM sizes...")
+        sizes = load_vm_sizes(zf)
+        sizes_path = out_dir / "vm_size_distribution.csv"
+        with open(sizes_path, "w", newline="\n") as f:
+            w = csv.writer(f)
+            w.writerow(["ram_category", "vcpu_category", "total_count"])
+            for (ram, vcpu), count in sorted(sizes.items(), key=lambda x: -x[1]):
+                w.writerow([ram, vcpu, count])
+        logger.info("Wrote %s", sizes_path)
 
-    zf.close()
     return out_path, sizes_path
 
 

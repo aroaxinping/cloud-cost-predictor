@@ -8,7 +8,6 @@ data/raw/
 *.gz
 .DS_Store
 .ipynb_checkpoints/
-models/*.pkl
 .env
 .claude/
 reports/coverage/

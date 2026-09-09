@@ -93,17 +93,19 @@ def recommend(pred_high: float, pred_mid: float, thresholds: dict | None = None)
     return "keep"
 
 
-def assess_risk(action: str, pred_high: float, margins: dict | None = None) -> str:
+def assess_risk(action: str, pred_high: float, margins: dict | None = None,
+                thresholds: dict | None = None) -> str:
     m: dict = margins if margins is not None else load_config()["risk_margins"]
+    t: dict = thresholds if thresholds is not None else load_config()["thresholds"]
     if action == "terminate":
-        margin = 5 - pred_high
+        margin = t["terminate_cpu"] - pred_high
         if margin > m["terminate"]["safe"]:
             return "safe"
         if margin > m["terminate"]["moderate"]:
             return "moderate"
         return "risky"
     elif action == "downsize":
-        margin = 20 - pred_high
+        margin = t["downsize_cpu"] - pred_high
         if margin > m["downsize"]["safe"]:
             return "safe"
         if margin > m["downsize"]["moderate"]:
@@ -112,7 +114,7 @@ def assess_risk(action: str, pred_high: float, margins: dict | None = None) -> s
     return "n/a"
 
 
-def estimate_savings(action: str, hourly_cost: float, pred_mid: float) -> float:
+def estimate_savings(action: str, hourly_cost: float) -> float:
     """Estimate monthly savings based on action and real EC2 pricing."""
     if action == "terminate":
         return hourly_cost * HOURS_MONTH
@@ -130,6 +132,11 @@ def predict(csv_path, output_path=None):
     thresholds = config["thresholds"]
     margins = config["risk_margins"]
 
+    actual_cpu = {}
+    with open(csv_path) as f:
+        for row in csv.DictReader(f):
+            actual_cpu[row["instance"]] = row["cpu_mean"]
+
     preds = {q: models[q].predict(X) for q in quantiles}
 
     if output_path is None:
@@ -137,17 +144,17 @@ def predict(csv_path, output_path=None):
 
     with open(output_path, "w", newline="\n") as f:
         w = csv.writer(f)
-        w.writerow(["instance", "pred_low", "pred_mid", "pred_high",
+        w.writerow(["instance", "actual_cpu", "pred_low", "pred_mid", "pred_high",
                      "action", "risk", "monthly_savings"])
         for i, inst in enumerate(instances):
             low = preds[quantiles[0]][i]
             mid = preds[quantiles[1]][i]
             high = preds[quantiles[2]][i]
             action = recommend(high, mid, thresholds)
-            risk = assess_risk(action, high, margins)
-            savings = estimate_savings(action, avg_hourly, mid)
-            w.writerow([inst, f"{low:.2f}", f"{mid:.2f}", f"{high:.2f}",
-                        action, risk, f"{savings:.2f}"])
+            risk = assess_risk(action, high, margins, thresholds)
+            savings = estimate_savings(action, avg_hourly)
+            w.writerow([inst, actual_cpu.get(inst, ""), f"{low:.2f}", f"{mid:.2f}",
+                        f"{high:.2f}", action, risk, f"{savings:.2f}"])
 
     print(f"Wrote {len(instances)} recommendations to {output_path}")
     print(f"Fleet avg hourly rate: ${avg_hourly:.4f} (from EC2 pricing)")

@@ -1,19 +1,21 @@
 model_name: Cloud VM CPU Utilization Predictor
 version: "1.0"
-framework: XGBoost 3.4.1
+framework: XGBoost 2.x
 task: Quantile Regression (asymmetric loss)
 
 training:
-  dataset: SAP Cloud Infrastructure Dataset (2023)
+  dataset: SAP Cloud Infrastructure Dataset (August 2024, CC BY 4.0)
+  source: https://zenodo.org/records/13772668
   samples: 123,363 virtual machines
   features:
-    - cpu_std (standard deviation)
-    - cpu_min (minimum utilization)
+    - cpu_std (standard deviation / volatility)
+    - cpu_min (minimum utilization / floor)
     - cpu_median (p50 utilization)
-    - trend (temporal slope)
+    - trend (temporal slope, zero at inference)
     - cv (coefficient of variation)
-  feature_selection: VIF-based multicollinearity removal
+  feature_selection: VIF-based multicollinearity removal (11 -> 5 features)
   quantiles: [0.10, 0.50, 0.95]
+  split: 80/20 VM-level (9,411 unseen VMs in test set)
 
 hyperparameters:
   n_estimators: 1000
@@ -27,10 +29,13 @@ hyperparameters:
   under_penalty: 3.0
 
 performance:
-  mae: 2.87
+  median_model_mae: 1.71
+  overall_mae: 2.87
   coverage_95: 96.8%
+  coverage_85: 85.6%
   naive_baseline_mae: 7.41
   improvement_over_baseline: "61%"
+  train_test_gap: "0.04% (no overfitting)"
 
 classification_thresholds:
   terminate: "p95 < 5%"
@@ -45,9 +50,10 @@ output:
 
 limitations:
   - Static snapshot analysis; does not capture seasonal patterns
-  - CPU-focused; memory and network are secondary signals
+  - Memory used as heuristic guard (>80% = right-sized), not as model feature
   - Pricing based on EC2 on-demand rates (no reserved/spot)
   - SAP enterprise workloads may not generalize to other clouds
+  - Trend feature defaults to zero at inference (no raw time series available)
 
 ethical_considerations:
   - Recommendations should be validated by infrastructure teams

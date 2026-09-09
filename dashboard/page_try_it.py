@@ -95,7 +95,7 @@ based on how far the prediction is from the threshold. A VM predicted at 1% with
 
                     action = recommend(high, mid)
                     risk = assess_risk(action, high)
-                    savings = estimate_savings(action, avg_hourly, mid)
+                    savings = estimate_savings(action, avg_hourly)
 
                     results.append({
                         "instance": df.iloc[i]["instance"],
