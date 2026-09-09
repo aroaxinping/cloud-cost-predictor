@@ -1,0 +1,312 @@
+{
+  "metadata": {
+    "source": "AWS EC2 Reserved Instance Pricing, standard offering class (Bulk API)",
+    "region": "us-east-1",
+    "os": "Linux",
+    "verified": "2026-09-09",
+    "url": "https://aws.amazon.com/ec2/pricing/reserved-instances/pricing/",
+    "note": "Savings Plans rates are not published on the public Bulk Pricing API and are not included here. See README.md / src/reserved_instances.py for what would be needed to add them."
+  },
+  "instances": {
+    "m5.large": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.019,
+          "upfront_usd": 505.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.041,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 949.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.06,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 494.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.029,
+          "upfront_usd": 252.0
+        }
+      }
+    },
+    "m5.xlarge": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.038,
+          "upfront_usd": 1009.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.083,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 1897.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.121,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 989.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.058,
+          "upfront_usd": 505.0
+        }
+      }
+    },
+    "r5.2xlarge": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.101,
+          "upfront_usd": 2649.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.218,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 4980.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.318,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 2596.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.151,
+          "upfront_usd": 1325.0
+        }
+      }
+    },
+    "r5.4xlarge": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.202,
+          "upfront_usd": 5298.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.435,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 9960.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.635,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 5192.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.302,
+          "upfront_usd": 2649.0
+        }
+      }
+    },
+    "r5.8xlarge": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.403,
+          "upfront_usd": 10596.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.871,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 19921.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 1.27,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 10384.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.605,
+          "upfront_usd": 5298.0
+        }
+      }
+    },
+    "r5.large": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.025,
+          "upfront_usd": 662.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.054,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 1245.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.079,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 649.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.038,
+          "upfront_usd": 331.0
+        }
+      }
+    },
+    "r5.xlarge": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.05,
+          "upfront_usd": 1325.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.109,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 2490.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.159,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 1298.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.076,
+          "upfront_usd": 662.0
+        }
+      }
+    },
+    "t3.medium": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.0083,
+          "upfront_usd": 219.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.018,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 411.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.0261,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 213.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.0124,
+          "upfront_usd": 109.0
+        }
+      }
+    },
+    "t3.micro": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.0021,
+          "upfront_usd": 55.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.0045,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 103.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.0065,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 53.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.0031,
+          "upfront_usd": 27.0
+        }
+      }
+    },
+    "t3.small": {
+      "3yr": {
+        "Partial Upfront": {
+          "hourly_usd": 0.0042,
+          "upfront_usd": 109.0
+        },
+        "No Upfront": {
+          "hourly_usd": 0.009,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 206.0
+        }
+      },
+      "1yr": {
+        "No Upfront": {
+          "hourly_usd": 0.013,
+          "upfront_usd": 0.0
+        },
+        "All Upfront": {
+          "hourly_usd": 0.0,
+          "upfront_usd": 107.0
+        },
+        "Partial Upfront": {
+          "hourly_usd": 0.0062,
+          "upfront_usd": 54.0
+        }
+      }
+    }
+  }
+}
