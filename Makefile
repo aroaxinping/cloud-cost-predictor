@@ -1,4 +1,4 @@
-.PHONY: setup ingest eda pricing train validate predict app demo docker lint test clean all help
+.PHONY: setup ingest eda pricing ri train validate predict app demo docker lint test clean all help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -14,6 +14,9 @@ eda: ## Classify VMs and write vm_classified.csv
 
 pricing: ## Estimate fleet costs from EC2 pricing
 	uv run python src/pricing.py
+
+ri: ## Compare on-demand vs Reserved Instance costs for "keep" VMs
+	uv run python -m src.reserved_instances
 
 train: ## Execute the model training notebook
 	uv run jupyter nbconvert --to notebook --execute notebooks/03_predictive_model.ipynb
@@ -44,4 +47,4 @@ clean: ## Remove caches and virtual environment
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .ipynb_checkpoints -exec rm -rf {} +
 
-all: setup ingest eda pricing train predict ## Full pipeline
+all: setup ingest eda pricing train predict ri ## Full pipeline
