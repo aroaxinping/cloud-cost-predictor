@@ -1,4 +1,4 @@
-.PHONY: setup ingest eda pricing train validate predict app demo docker lint test clean all help
+.PHONY: setup ingest eda pricing train validate predict app api demo docker lint test clean all help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -26,6 +26,9 @@ predict: validate ## Run predictions on VM utilization data
 
 app: ## Launch the Streamlit dashboard
 	uv run streamlit run app.py
+
+api: ## Launch the FastAPI prediction server
+	uv run uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
 
 demo: setup predict app ## Full demo: install, predict, launch
 
