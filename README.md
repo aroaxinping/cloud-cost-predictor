@@ -104,7 +104,17 @@ Returns quantile predictions (low/mid/high), action, risk level, and estimated m
 
 ## Dashboard
 
-Interactive Streamlit app with four pages: fleet waste breakdown, model explainer (quantile bands, asymmetric loss curve, SHAP waterfall), recommendations explorer with AWS pricing transparency, and a "Try It" page for uploading your own VM data.
+Interactive Streamlit app with four pages.
+
+| The Problem | The Model |
+|---|---|
+| ![Problem](reports/figures/dashboard_problem.png) | ![Model](reports/figures/dashboard_model.png) |
+
+| Recommendations | Try It |
+|---|---|
+| ![Recommendations](reports/figures/dashboard_recommendations.png) | ![Try It](reports/figures/dashboard_tryit.png) |
+
+Fleet waste breakdown with real EC2 pricing, model explainer with quantile bands and SHAP waterfalls, recommendations explorer with risk levels, and a "Try It" page for scoring your own VMs.
 
 ```bash
 make app
@@ -112,7 +122,7 @@ make app
 
 ## Explainability
 
-SHAP TreeExplainer on the median model provides per-VM feature attribution. The notebook includes beeswarm and waterfall plots showing why specific VMs get their recommendations. The dashboard surfaces these waterfall plots on the Model page.
+SHAP TreeExplainer on the median model provides per-VM feature attribution. Beeswarm and waterfall plots show why specific VMs get their recommendations. The dashboard surfaces these on the Model page.
 
 ## Architecture
 
