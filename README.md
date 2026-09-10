@@ -6,6 +6,8 @@
 ![Tests](https://img.shields.io/badge/tests-58_passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-73%25_(src)-yellow)
 
+**[Live Demo](https://cloud-cost-predictor.streamlit.app)**
+
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
 ## Problem
@@ -85,6 +87,15 @@ In production, run this on every new data batch before trusting model prediction
 Notebook 05 groups VMs by usage behavior using K-Means on the 5 model features. Elbow + silhouette analysis selects optimal k. Clusters are auto-labeled as archetypes (zombie, idle, bursty, workhorse, moderate) and cross-referenced with the rule-based classification from `eda.py` to spot divergences.
 
 This is useful for fleet operations: instead of acting on 123K individual recommendations, teams can reason about a handful of behavioral groups.
+
+## SQL Analysis
+
+Notebook 06 runs analytical SQL queries on the fleet data using DuckDB (in-process, no server needed). Demonstrates:
+
+- **CTEs**: multi-step filtering pipeline to find hidden waste (low CPU + high memory VMs)
+- **Window functions**: ROW_NUMBER ranking, NTILE deciles, cumulative savings with running totals
+- **JOINs**: enriching recommendations with VM classification for savings-by-class breakdown
+- **CASE expressions**: prediction error buckets, risk matrices, conditional aggregations
 
 ## REST API
 
@@ -174,6 +185,7 @@ notebooks/
   03_predictive_model.ipynb <- model training, SHAP, CV, Monte Carlo
   04_drift_detection.ipynb  <- PSI + KS tests for feature drift
   05_vm_clustering.ipynb    <- K-Means usage archetypes
+  06_sql_analysis.ipynb     <- analytical SQL with DuckDB
 src/
   ingest.py           <- stream SAP zip to per-VM summaries
   eda.py              <- classify VMs (config-driven, memory-aware)
@@ -249,10 +261,14 @@ The SAP dataset is from August 2024. This does not affect the analysis:
 
 ## Next Steps
 
+- **MLflow experiment tracking:** version models, log hyperparameters and metrics, compare runs in a central registry
+- **Airflow / Prefect orchestration:** schedule and monitor the ingest → train → predict → drift-check pipeline as a DAG
 - **Memory quantile predictions:** train a parallel memory model so recommendations consider both CPU and memory utilization forecasts
 - **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
 - **Reserved instance / Savings Plans modeling:** compare on-demand waste against what RI/SP commitments would cost
 - **Conformal prediction:** replace quantile regression intervals with distribution-free conformal prediction sets for guaranteed coverage
+- **Great Expectations:** formal data quality validation on every ingest run (schema checks, distribution bounds, freshness)
+- **dbt transformations:** replace pandas ETL with version-controlled, tested SQL transformations
 
 ## License
 
