@@ -6,7 +6,7 @@
 ![Tests](https://img.shields.io/badge/tests-70_passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-68%25_(src)-yellow)
 
-**[Live Demo](https://cloud-cost-predictor.streamlit.app)**
+**[Live Demo](https://cloud-cost-predictor-6youlcbp3hjgbvjf4sxuwq.streamlit.app)**
 
 Predicting cloud infrastructure waste from 123K real VMs. XGBoost with asymmetric loss and 95% confidence intervals recommends which VMs to terminate, downsize, or keep.
 
