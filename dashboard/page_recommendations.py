@@ -15,6 +15,7 @@ from dashboard.shared import (
     TEXT,
     footer,
     kpi_card,
+    load_anomalies,
     load_fleet_costs,
     load_recommendations,
     safe_page,
@@ -250,6 +251,47 @@ assume on-demand pricing, not reserved instances or savings plans.
         st.metric("Aggressive (10%)", f"${aggressive_savings:.1f}M/mo",
                   f"{terminate_counts[thresholds_range.index(10)]:,} VMs")
 
+    anomalies = load_anomalies()
+    if not anomalies.empty:
+        st.markdown('<p class="section-header">Anomaly Detection</p>',
+                    unsafe_allow_html=True)
+        st.markdown("""
+        <p class="story-text">
+            VMs flagged with recent CPU spikes. These had low averages but a sudden
+            peak in the last 7 days — too risky to terminate without investigation.
+            Their action was overridden from <strong>terminate</strong> to <strong>review</strong>.
+        </p>
+        """, unsafe_allow_html=True)
+
+        ac1, ac2, ac3 = st.columns(3)
+        spike_count = len(anomalies)
+        spike_in_rec = rec[rec.get("spike_flag", pd.Series(dtype=bool)) == True] if "spike_flag" in rec.columns else pd.DataFrame()
+        with ac1:
+            kpi_card(f"{spike_count:,}", "Spikes Detected",
+                     f"z-score >= 2.5 over last 7 days", AMBER)
+        with ac2:
+            avg_z = anomalies["z_score"].mean()
+            kpi_card(f"{avg_z:.1f}", "Avg Z-Score",
+                     "Standard deviations above baseline", AMBER)
+        with ac3:
+            max_spike = anomalies["recent_max"].max()
+            kpi_card(f"{max_spike:.0f}%", "Highest Spike",
+                     "Peak CPU among flagged VMs", RED)
+
+        with st.expander(f"View {spike_count:,} flagged VMs", expanded=False):
+            st.dataframe(
+                anomalies.sort_values("z_score", ascending=False),
+                column_config={
+                    "recent_max": st.column_config.NumberColumn("Recent Max CPU", format="%.1f%%"),
+                    "z_score": st.column_config.NumberColumn("Z-Score", format="%.1f"),
+                    "historical_mean": st.column_config.NumberColumn("Hist. Mean", format="%.1f%%"),
+                    "historical_std": st.column_config.NumberColumn("Hist. Std", format="%.1f%%"),
+                },
+                use_container_width=True,
+                height=300,
+                hide_index=True,
+            )
+
     st.markdown('<p class="section-header">VM Explorer</p>',
                 unsafe_allow_html=True)
 
@@ -261,10 +303,11 @@ assume on-demand pricing, not reserved instances or savings plans.
             default=sorted(rec["action"].unique()),
         )
     with fc2:
+        risk_options = ["safe", "moderate", "risky", "spike", "n/a"]
         risk_filter = st.multiselect(
             "Filter by risk",
-            options=["safe", "moderate", "risky", "n/a"],
-            default=["safe", "moderate", "risky", "n/a"],
+            options=risk_options,
+            default=risk_options,
         )
     with fc3:
         search = st.text_input("Search VM ID", "")

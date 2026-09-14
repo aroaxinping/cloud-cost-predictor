@@ -1,6 +1,7 @@
 """Load trained XGBoost models and generate VM recommendations from new data."""
 import csv
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -8,11 +9,16 @@ import numpy as np
 import xgboost as xgb
 import yaml
 
+from src.anomaly import detect_spikes
+
+logger = logging.getLogger(__name__)
+
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "models"
 DATA_DIR = ROOT / "data" / "clean"
 PRICING_FILE = ROOT / "data" / "pricing" / "ec2_on_demand.json"
 CONFIG_FILE = ROOT / "config.yaml"
+DAILY_CPU_FILE = DATA_DIR / "vm_cpu_daily.csv"
 
 FEATURE_NAMES = ["std", "min", "p50", "trend", "cv"]
 HOURS_MONTH = 730
@@ -132,6 +138,13 @@ def predict(csv_path, output_path=None):
     thresholds = config["thresholds"]
     margins = config["risk_margins"]
 
+    anomalies: dict[str, dict] = {}
+    if DAILY_CPU_FILE.exists():
+        anomaly_config = config.get("anomaly", {})
+        anomalies = detect_spikes(DAILY_CPU_FILE, anomaly_config)
+        n_spikes = sum(1 for a in anomalies.values() if a["spike"])
+        logger.info("Anomaly detection: %d VMs flagged with recent spikes", n_spikes)
+
     actual_cpu = {}
     with open(csv_path) as f:
         for row in csv.DictReader(f):
@@ -142,10 +155,11 @@ def predict(csv_path, output_path=None):
     if output_path is None:
         output_path = DATA_DIR / "vm_recommendations.csv"
 
+    overridden = 0
     with open(output_path, "w", newline="\n") as f:
         w = csv.writer(f)
         w.writerow(["instance", "actual_cpu", "pred_low", "pred_mid", "pred_high",
-                     "action", "risk", "monthly_savings"])
+                     "action", "risk", "monthly_savings", "spike_flag"])
         for i, inst in enumerate(instances):
             low = preds[quantiles[0]][i]
             mid = preds[quantiles[1]][i]
@@ -153,11 +167,21 @@ def predict(csv_path, output_path=None):
             action = recommend(high, mid, thresholds)
             risk = assess_risk(action, high, margins, thresholds)
             savings = estimate_savings(action, avg_hourly)
+
+            spike = anomalies.get(inst, {}).get("spike", False)
+            if spike and action == "terminate":
+                action = "review"
+                risk = "spike"
+                savings = 0.0
+                overridden += 1
+
             w.writerow([inst, actual_cpu.get(inst, ""), f"{low:.2f}", f"{mid:.2f}",
-                        f"{high:.2f}", action, risk, f"{savings:.2f}"])
+                        f"{high:.2f}", action, risk, f"{savings:.2f}", spike])
 
     print(f"Wrote {len(instances)} recommendations to {output_path}")
     print(f"Fleet avg hourly rate: ${avg_hourly:.4f} (from EC2 pricing)")
+    if overridden:
+        print(f"Anomaly override: {overridden} VMs changed from terminate to review (recent spikes)")
 
 
 if __name__ == "__main__":

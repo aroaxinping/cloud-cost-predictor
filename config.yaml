@@ -36,6 +36,11 @@ risk_margins:
     safe: 8
     moderate: 3
 
+anomaly:
+  recent_days: 7
+  z_threshold: 2.5
+  min_observations: 5
+
 pricing:
   price_per_cpu_pct_hour: 0.001
   hours_per_month: 730

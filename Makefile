@@ -1,4 +1,4 @@
-.PHONY: setup ingest eda pricing ri train validate predict app api demo docker lint test clean all help
+.PHONY: setup ingest eda pricing ri anomaly train validate predict app api demo docker lint test clean all help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -17,6 +17,9 @@ pricing: ## Estimate fleet costs from EC2 pricing
 
 ri: ## Compare on-demand vs Reserved Instance costs for "keep" VMs
 	uv run python -m src.reserved_instances
+
+anomaly: ## Detect VMs with recent CPU spikes
+	uv run python -m src.anomaly
 
 train: ## Execute the model training notebook
 	uv run jupyter nbconvert --to notebook --execute notebooks/03_predictive_model.ipynb
@@ -50,4 +53,4 @@ clean: ## Remove caches and virtual environment
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .ipynb_checkpoints -exec rm -rf {} +
 
-all: setup ingest eda pricing train predict ri ## Full pipeline
+all: setup ingest eda pricing train predict anomaly ri ## Full pipeline

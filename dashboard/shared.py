@@ -173,6 +173,15 @@ def load_ri_recommendations():
 
 
 @st.cache_data
+def load_anomalies():
+    path = DATA / "vm_anomalies.csv"
+    if path.exists():
+        return pd.read_csv(path)
+    return pd.DataFrame(columns=["instance", "recent_max", "z_score",
+                                  "historical_mean", "historical_std"])
+
+
+@st.cache_data
 def load_models():
     models = {}
     for q in [0.10, 0.50, 0.95]:

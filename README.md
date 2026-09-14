@@ -3,7 +3,7 @@
 [![CI](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml/badge.svg)](https://github.com/aroaxinping/cloud-cost-predictor/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-70_passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-94_passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-68%25_(src)-yellow)
 
 **[Live Demo](https://cloud-cost-predictor-6youlcbp3hjgbvjf4sxuwq.streamlit.app)**
@@ -87,6 +87,21 @@ In production, run this on every new data batch before trusting model prediction
 Notebook 05 groups VMs by usage behavior using K-Means on the 5 model features. Elbow + silhouette analysis selects optimal k. Clusters are auto-labeled as archetypes (zombie, idle, bursty, workhorse, moderate) and cross-referenced with the rule-based classification from `eda.py` to spot divergences.
 
 This is useful for fleet operations: instead of acting on 123K individual recommendations, teams can reason about a handful of behavioral groups.
+
+## Anomaly Detection
+
+The prediction model uses aggregate statistics (mean, std, percentiles) that can miss recent behavioral changes. A VM averaging 2% CPU over 30 days might have spiked to 80% yesterday — terminating it based on the monthly average would be a mistake.
+
+`src/anomaly.py` scans the daily CPU time series and flags VMs whose recent peak (last 7 days) exceeds 2.5 standard deviations above their historical baseline (z-score). When integrated into the prediction pipeline (`src/predict.py`), flagged VMs have their "terminate" recommendation overridden to "review" with a "spike" risk tag.
+
+On the SAP fleet: **7,822 of 123,357 VMs** (6.3%) were flagged with recent spikes. These are VMs that would have been marked for termination based on their low averages, but show intermittent activity that warrants investigation before acting.
+
+Configuration in `config.yaml`:
+- `recent_days`: window for spike detection (default: 7)
+- `z_threshold`: standard deviations above mean to flag (default: 2.5)
+- `min_observations`: minimum historical data points required (default: 5)
+
+Run it standalone with `make anomaly`, or it runs automatically as part of `make predict`.
 
 ## SQL Analysis
 
@@ -175,13 +190,15 @@ flowchart LR
     subgraph Model
         B --> G[XGBoost training\nq=0.10 · 0.50 · 0.95\nasymmetric loss 3×]
         G --> H[predict.py\nrecommend + risk score]
+        B --> AN[anomaly.py\nz-score spike detection]
+        AN --> H
         H --> MC[montecarlo.py\n10K savings simulations]
         H --> RI[reserved_instances.py\nRI vs on-demand for 'keep' VMs]
         RI --> K[ri_recommendations.csv]
     end
 
     subgraph Serve
-        H --> I[Streamlit app\n4 pages + Try It]
+        H --> I[Streamlit app\n5 pages + Try It]
         H --> J[FastAPI\nREST endpoint]
         E --> I
         F --> I
@@ -220,6 +237,7 @@ src/
   reserved_instances.py <- price "keep" VMs against RI commitments
   validate.py         <- data integrity checks
   montecarlo.py       <- Monte Carlo savings simulation
+  anomaly.py          <- CPU spike detection (z-score on daily series)
   api.py              <- FastAPI prediction endpoint
 scripts/
   export_figures.py   <- generate publication-ready figures
@@ -294,7 +312,6 @@ The SAP dataset is from August 2024. This does not affect the analysis:
 - **MLflow experiment tracking:** version models, log hyperparameters and metrics, compare runs in a central registry
 - **Airflow / Prefect orchestration:** schedule and monitor the ingest → train → predict → drift-check pipeline as a DAG
 - **Memory quantile predictions:** train a parallel memory model so recommendations consider both CPU and memory utilization forecasts
-- **Anomaly detection layer:** flag VMs with recent CPU spikes before recommending termination, even if their monthly average is low
 - **Real Savings Plans rates:** `src/reserved_instances.py` already models Reserved Instances against real AWS prices; wiring up the authenticated `savingsplans:DescribeRates` API would let it compare RI against Savings Plans instead of leaving that column blank
 - **Conformal prediction:** replace quantile regression intervals with distribution-free conformal prediction sets for guaranteed coverage
 - **Great Expectations:** formal data quality validation on every ingest run (schema checks, distribution bounds, freshness)
