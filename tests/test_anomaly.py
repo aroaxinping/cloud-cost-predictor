@@ -1,7 +1,5 @@
 """Tests for src/anomaly.py — CPU spike detection."""
 import csv
-import textwrap
-from pathlib import Path
 
 import pytest
 

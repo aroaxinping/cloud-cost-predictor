@@ -265,10 +265,9 @@ assume on-demand pricing, not reserved instances or savings plans.
 
         ac1, ac2, ac3 = st.columns(3)
         spike_count = len(anomalies)
-        spike_in_rec = rec[rec.get("spike_flag", pd.Series(dtype=bool)) == True] if "spike_flag" in rec.columns else pd.DataFrame()
         with ac1:
             kpi_card(f"{spike_count:,}", "Spikes Detected",
-                     f"z-score >= 2.5 over last 7 days", AMBER)
+                     "z-score >= 2.5 over last 7 days", AMBER)
         with ac2:
             avg_z = anomalies["z_score"].mean()
             kpi_card(f"{avg_z:.1f}", "Avg Z-Score",
