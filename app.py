@@ -3,7 +3,14 @@ from pathlib import Path
 
 import streamlit as st
 
-from dashboard import inject_css, page_model, page_problem, page_recommendations, page_try_it
+from dashboard import (
+    inject_css,
+    page_model,
+    page_problem,
+    page_recommendations,
+    page_reserved_instances,
+    page_try_it,
+)
 
 ROOT = Path(__file__).resolve().parent
 
@@ -26,7 +33,7 @@ def main():
         st.markdown("---")
         page = st.radio(
             "Navigate",
-            ["The Problem", "The Model", "Recommendations", "Try It"],
+            ["The Problem", "The Model", "Recommendations", "Reserved Instances", "Try It"],
             label_visibility="collapsed",
         )
         st.markdown("---")
@@ -57,6 +64,8 @@ def main():
         page_model()
     elif page == "Recommendations":
         page_recommendations()
+    elif page == "Reserved Instances":
+        page_reserved_instances()
     elif page == "Try It":
         page_try_it()
 

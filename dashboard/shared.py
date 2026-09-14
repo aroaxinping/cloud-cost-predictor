@@ -168,6 +168,11 @@ def load_fleet_costs():
 
 
 @st.cache_data
+def load_ri_recommendations():
+    return pd.read_csv(_check_file(DATA / "ri_recommendations.csv"))
+
+
+@st.cache_data
 def load_models():
     models = {}
     for q in [0.10, 0.50, 0.95]:
